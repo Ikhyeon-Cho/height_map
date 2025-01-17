@@ -63,7 +63,7 @@ private:
   // Publishers
   ros::Publisher pubGlobalMap_;
   ros::Publisher pubMapRegion_;
-
+  ros::Publisher pubGlobalMapMsg_;
   // Services
   ros::ServiceServer srvClearMap_;
   ros::ServiceServer srvSaveMapToBag_;

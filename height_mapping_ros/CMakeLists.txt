@@ -39,9 +39,8 @@ include_directories(
 
 # Sensor processor node
 add_executable(sensor_processor_node 
-  src/executables/sensor_processor_main.cpp
-  src/nodes/SensorProcessorNode.cpp
-  # src/SensorProcessor.cpp
+  src/sensor_processor/sensor_processor_main.cpp
+  src/sensor_processor/SensorProcessorNode.cpp
 )
 target_link_libraries(sensor_processor_node
   ${PCL_LIBRARIES}
@@ -50,9 +49,9 @@ target_link_libraries(sensor_processor_node
 
 # Height mapping node
 add_executable(height_mapping_node 
-  src/executables/height_mapping_main.cpp
-  src/nodes/HeightMappingNode.cpp
-  src/HeightMapping.cpp
+  src/height_mapping/height_mapping_main.cpp
+  src/height_mapping/HeightMappingNode.cpp
+  src/height_mapping/HeightMapping.cpp
 )
 target_link_libraries(height_mapping_node
   ${PCL_LIBRARIES}
@@ -61,9 +60,9 @@ target_link_libraries(height_mapping_node
 
 # Global mapping node
 add_executable(global_mapping_node 
-  src/executables/global_mapping_main.cpp
-  src/nodes/GlobalMappingNode.cpp
-  src/GlobalMapping.cpp
+  src/global_mapping/global_mapping_main.cpp
+  src/global_mapping/GlobalMappingNode.cpp
+  src/global_mapping/GlobalMapping.cpp
 )
 target_link_libraries(global_mapping_node
   ${PCL_LIBRARIES}

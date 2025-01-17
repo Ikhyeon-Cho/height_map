@@ -79,9 +79,9 @@ private:
   grid_map::HeightMap map_;
   Parameters params_;
 
-  height_mapping::FastHeightFilter heightFilter_;
+  FastHeightFilter heightFilter_;
   height_mapping::HeightEstimatorBase::Ptr heightEstimator_;
-  height_mapping::HeightMapRaycaster raycaster_;
+  height_mapping::Raycaster raycaster_;
 
   float correction_threshold_{0.15f};
 };

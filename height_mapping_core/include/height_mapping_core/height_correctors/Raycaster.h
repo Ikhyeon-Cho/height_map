@@ -1,5 +1,5 @@
 /*
- * HeightMapRaycaster.h
+ * Raycaster.h
  *
  *  Created on: Nov 28, 2024
  *      Author: Ikhyeon Cho
@@ -15,9 +15,9 @@
 
 namespace height_mapping {
 
-class HeightMapRaycaster {
+class Raycaster {
 public:
-  HeightMapRaycaster() = default;
+  Raycaster() = default;
 
   template <typename PointT>
   void correctHeight(grid_map::HeightMap &map,
@@ -30,11 +30,11 @@ public:
     auto &numMeasuredMatrix = map.getMeasurementCountMatrix();
 
     map.addLayer("raycasting");
-    map.clear("raycasting");
-    auto &raycastingMatrix = map.get("raycasting");
-
     map.addLayer("scan_height");
+    map.clear("raycasting");
     map.clear("scan_height");
+
+    auto &raycastingMatrix = map.get("raycasting");
     auto &scanHeightMatrix = map.get("scan_height");
 
     const float sensorHeight = sensorOrigin.z();
@@ -79,9 +79,6 @@ public:
         if (std::isfinite(scanHeight) && scanHeight > pointOnRay.z() + 0.1)
           break;
 
-        // if (isStaticAt(map, checkIndex))
-        //   continue;
-
         // Get map height and variance at the ray point
         auto &mapHeight = heightMatrix(checkIndex(0), checkIndex(1));
         auto &mapMaxHeight = maxHeightMatrix(checkIndex(0), checkIndex(1));
@@ -109,12 +106,8 @@ public:
     }
   }
 
-  // Avoid raycasting on static terrain
-  bool isStaticAt(const grid_map::HeightMap &map, const grid_map::Index &index);
-
 private:
   float correctionThreshold_{0.02f};
-  float heightDiffThreshold_{0.55f};
 };
 
 } // namespace height_mapping

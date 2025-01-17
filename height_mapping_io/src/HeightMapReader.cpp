@@ -7,7 +7,7 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_io/HeightMapReader.h"
+#include "height_mapping_io/io/HeightMapReader.h"
 
 const grid_map::GridMap &
 HeightMapReader::openBagFile(const std::string &bagfile,

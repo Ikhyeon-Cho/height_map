@@ -71,5 +71,5 @@ private:
 
   std::unordered_set<grid_map::Index> measured_indices_;
   height_mapping::HeightEstimatorBase::Ptr heightEstimator_;
-  height_mapping::HeightMapRaycaster raycaster_;
+  height_mapping::Raycaster raycaster_;
 };

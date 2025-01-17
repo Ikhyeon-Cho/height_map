@@ -1,3 +1,4 @@
 .vscode/**
 data/**
 maps/
+__pycache__/

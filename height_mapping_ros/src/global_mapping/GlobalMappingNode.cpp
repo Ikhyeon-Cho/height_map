@@ -51,6 +51,8 @@ void GlobalMappingNode::setupROSInterface() {
       "/height_mapping/globalmap/pointcloud", 1);
   pubMapRegion_ = nh_.advertise<visualization_msgs::Marker>(
       "/height_mapping/globalmap/region", 1);
+  pubGlobalMapMsg_ = nh_.advertise<grid_map_msgs::GridMap>(
+      "/height_mapping/globalmap/gridmap", 1);
 
   // Services
   srvSaveMapToBag_ =
@@ -136,6 +138,11 @@ void GlobalMappingNode::publishMap(const ros::TimerEvent &) {
   visualization_msgs::Marker msgRegion;
   HeightMapMsgs::toMapRegion(globalMapping_->getHeightMap(), msgRegion);
   pubMapRegion_.publish(msgRegion);
+
+  // Temp
+  grid_map_msgs::GridMap msg;
+  grid_map::GridMapRosConverter::toMessage(globalMapping_->getHeightMap(), msg);
+  pubGlobalMapMsg_.publish(msg);
 }
 
 void GlobalMappingNode::toPointCloud2(

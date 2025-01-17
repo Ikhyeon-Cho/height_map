@@ -27,7 +27,7 @@ HeightMappingNode::HeightMappingNode() {
 void HeightMappingNode::getNodeParameters() {
   // Topics
   subLaserTopic_ =
-      nhPriv_.param<std::string>("lidarCloudTopic", "/velodyne_points");
+      nhPriv_.param<std::string>("lidarCloudTopic", "/lidar/points");
   subRGBTopic_ =
       nhPriv_.param<std::string>("rgbCloudTopic", "/camera/pointcloud/points");
 
@@ -35,7 +35,8 @@ void HeightMappingNode::getNodeParameters() {
   robotPoseUpdateRate_ =
       nhPriv_.param<double>("robotPoseUpdateRate", 20.0);          // [Hz]
   mapPublishRate_ = nhPriv_.param<double>("mapPublishRate", 10.0); // [Hz]
-  useLidarCallback_ = nhPriv_.param<bool>("useLidarCallback", true);
+  useLidar_ = nhPriv_.param<bool>("useLidar", true);
+  useRGBD_ = nhPriv_.param<bool>("useRGB", true);
   removeRemoterPoints_ = nhPriv_.param<bool>("removeRemoterPoints", true);
   debugMode_ = nhPriv_.param<bool>("debugMode", false);
 }
@@ -57,13 +58,17 @@ void HeightMappingNode::setNodeTimers() {
 }
 
 void HeightMappingNode::setupROSInterface() {
+
   // Subscribers
-  if (useLidarCallback_) {
+  if (useLidar_) {
     subLaserCloud_ = nh_.subscribe(
         subLaserTopic_, 1, &HeightMappingNode::laserCloudCallback, this);
   }
-  subRGBCloud_ = nh_.subscribe(subRGBTopic_, 1,
-                               &HeightMappingNode::rgbCloudCallback, this);
+  if (useRGBD_) {
+    subRGBCloud_ = nh_.subscribe(subRGBTopic_, 1,
+                                 &HeightMappingNode::rgbCloudCallback, this);
+  }
+
   // Publishers
   pubHeightMap_ =
       nh_.advertise<grid_map_msgs::GridMap>("/height_mapping/map/gridmap", 1);

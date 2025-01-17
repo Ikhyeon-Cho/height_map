@@ -8,10 +8,9 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
 
+#include "height_mapping_data_collection/KITTIMapWriter.h"
+#include "height_mapping_data_collection/KITTIScanWriter.h"
 #include <height_mapping_utils/height_mapping_utils.h>
-
-#include "height_mapping_io/KITTIMapWriter.h"
-#include <nav_msgs/Odometry.h>
 
 class DataCollectionNode {
 public:
@@ -40,41 +39,41 @@ private:
   ros::NodeHandle nhPriv_{"~"};
   ros::NodeHandle nhFrameID_{nh_, "frame_id"};
   ros::NodeHandle nhDataCollection_{nh_, "data_collection"};
+
+  ros::Subscriber subLidarScan_;
+
+  ros::Publisher pubHeightMap_;
+  ros::Publisher pubScan_;
+
+  ros::ServiceServer startCollectionServer_;
+
+  ros::Timer dataCollectionTimer_;
+  ros::Timer publishTimer_;
+
   // Frame IDs
   std::string mapFrame_;
   std::string baselinkFrame_;
 
-  // Subscribers
-  ros::Subscriber subLidarScan_;
-
-  // Publishers
-  ros::Publisher pubHeightMap_;
-  ros::Publisher pubScan_;
-
-  // Service server
-  ros::ServiceServer startCollectionServer_;
-
-  // Timer
-  ros::Timer dataCollectionTimer_;
-  ros::Timer publishTimer_;
-  double dataCollectionPeriod_;
-  double publishRate_;
-
   // Core objects
   grid_map::GridMap globalMap_;
-  height_mapping::FastHeightFilter::Ptr heightFilter_;
+  FastHeightFilter::Ptr heightFilter_;
   utils::TransformHandler tf_;
   HeightMapReader mapReader_;
   KITTIScanWriter scanWriter_;
   KITTIMapWriter mapWriter_;
 
-  // Parameters
+  // Node parameters
   std::string subLidarTopic_;
   std::string dataCollectionPath_{
       "/home/ikhyeon/ros/dev_ws/src/height_mapping/data/"};
   std::string globalMapPath_{
       "/home/ikhyeon/ros/dev_ws/src/height_mapping/maps/globalmap.bag"};
 
+  // Timer parameters
+  double dataCollectionPeriod_;
+  double publishRate_;
+
+  // Height map parameters
   grid_map::Length mapLength_;
   double minHeightThreshold_;
   double maxHeightThreshold_;
@@ -82,4 +81,8 @@ private:
   // Data: pointcloud and grid map
   pcl::PointCloud<Laser>::Ptr processedCloud_;
   grid_map::HeightMap heightMap_;
+
+  // Flags
+  bool receivedCloud_{false};
+  uint64_t dataCount_{0};
 };

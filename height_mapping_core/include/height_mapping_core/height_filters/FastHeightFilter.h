@@ -9,10 +9,7 @@
 
 #pragma once
 
-#include "height_mapping_core/height_map/CloudTypes.h"
 #include <pcl/point_cloud.h>
-
-namespace height_mapping {
 
 class FastHeightFilter {
 public:
@@ -27,5 +24,3 @@ public:
 private:
   float minZ_, maxZ_;
 };
-
-} // namespace height_mapping

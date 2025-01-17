@@ -5,11 +5,12 @@ frame_id:
   lidar: "velodyne"
 
 height_mapping_node:
+  useLidar: true
+  useRGB: true
   lidarCloudTopic: "/velodyne/points"
   rgbCloudTopic: "/height_mapping/sensor_processor/points"
   robotPoseUpdateRate: 15.0
   mapPublishRate: 15.0
-  useLidarCallback: true
   removeRemoterPoints: true
   debugMode: false
 
@@ -34,8 +35,8 @@ height_map:
 
 global_map:
   gridResolution: 0.1
-  mapLengthX: 400
-  mapLengthY: 400
+  mapLengthX: 200
+  mapLengthY: 200
 
 sensor_processor:
   downsamplingResolution: 0.02 # [m/voxel]

@@ -7,11 +7,8 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#ifndef HEIGHT_MAP_H
-#define HEIGHT_MAP_H
-
+#pragma once
 #include <grid_map_core/grid_map_core.hpp>
-#include <string>
 
 namespace grid_map {
 
@@ -31,8 +28,8 @@ public:
   // Layer management
   void addLayer(const std::string &layer, float default_value = NAN);
   void addBasicLayer(const std::string &layer);
-  void removeLayer(const std::string &layer);
   bool hasLayer(const std::string &layer) const { return exists(layer); }
+  void removeLayer(const std::string &layer);
 
   // Core layer accessors
   Matrix &getHeightMatrix() { return get(CoreLayers::ELEVATION); }
@@ -42,16 +39,14 @@ public:
   Matrix &getMeasurementCountMatrix() {
     return get(CoreLayers::N_MEASUREMENTS);
   }
-
-  // Const versions
   const Matrix &getHeightMatrix() const { return get(CoreLayers::ELEVATION); }
+  const Matrix &getVarianceMatrix() const { return get(CoreLayers::VARIANCE); }
   const Matrix &getMinHeightMatrix() const {
     return get(CoreLayers::ELEVATION_MIN);
   }
   const Matrix &getMaxHeightMatrix() const {
     return get(CoreLayers::ELEVATION_MAX);
   }
-  const Matrix &getVarianceMatrix() const { return get(CoreLayers::VARIANCE); }
   const Matrix &getMeasurementCountMatrix() const {
     return get(CoreLayers::N_MEASUREMENTS);
   }
@@ -70,15 +65,28 @@ public:
   bool is_initialized_{false};
 };
 
-} // namespace grid_map
-
 class HeightMapMath {
+  // min max operation reference:
+  // https://www.geeksforgeeks.org/difference-between-stdnumeric_limitst-min-max-and-lowest-in-cpp/
+
 public:
   static float getMinVal(const grid_map::HeightMap &map,
-                         const std::string &layer);
+                         const std::string &layer) {
+    const auto &data = map[layer];
+
+    auto fillNaNForFindingMinVal =
+        data.array().isNaN().select(std::numeric_limits<double>::max(), data);
+    return fillNaNForFindingMinVal.minCoeff();
+  }
 
   static float getMaxVal(const grid_map::HeightMap &map,
-                         const std::string &layer);
+                         const std::string &layer) {
+    const auto &data = map[layer];
+
+    auto fillNaNForFindingMaxVal = data.array().isNaN().select(
+        std::numeric_limits<double>::lowest(), data);
+    return fillNaNForFindingMaxVal.maxCoeff();
+  }
 };
 
-#endif // HEIGHT_MAP_H
+} // namespace grid_map

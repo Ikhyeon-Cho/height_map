@@ -31,11 +31,10 @@ link_directories(${PCL_LIBRARY_DIRS})
 
 add_library(${PROJECT_NAME}
   src/HeightMap.cpp
+  src/FastHeightFilter.cpp
   src/KalmanEstimator.cpp
   src/MovingAverageEstimator.cpp
   src/StatMeanEstimator.cpp
-  src/HeightMapRaycaster.cpp
-  src/FastHeightFilter.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

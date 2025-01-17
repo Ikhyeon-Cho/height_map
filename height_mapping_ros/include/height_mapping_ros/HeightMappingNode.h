@@ -73,6 +73,7 @@ private:
   // State variables
   bool laserReceived_{false};
   bool rgbReceived_{false};
-  bool useLidarCallback_{true};
+  bool useLidar_{true};
+  bool useRGBD_{true};
   bool removeRemoterPoints_{true};
 };

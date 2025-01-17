@@ -51,6 +51,9 @@ include_directories(
 add_executable(data_collection_node 
   src/executables/data_collection_main.cpp
   src/nodes/DataCollectionNode.cpp
+  src/KITTIScanReader.cpp
+  src/KITTIScanWriter.cpp
+  src/KITTIMapWriter.cpp
 )
 target_link_libraries(data_collection_node
   ${PCL_LIBRARIES}
@@ -66,3 +69,4 @@ target_link_libraries(data_visualization_node
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES}
 )
+

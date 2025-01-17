@@ -11,15 +11,17 @@
 
 namespace grid_map {
 HeightMap::HeightMap() {
+
   // Add core layers
   add(CoreLayers::ELEVATION);
   add(CoreLayers::ELEVATION_MIN);
   add(CoreLayers::ELEVATION_MAX);
   add(CoreLayers::VARIANCE);
   add(CoreLayers::N_MEASUREMENTS, 0.0f);
-  setFrameId("map");
   setBasicLayers({CoreLayers::ELEVATION, CoreLayers::ELEVATION_MIN,
                   CoreLayers::ELEVATION_MAX});
+
+  setFrameId("map");
 }
 
 void HeightMap::addLayer(const std::string &layer, float default_val) {
@@ -45,30 +47,11 @@ bool HeightMap::hasHeightValues() const {
   return !allNaN;
 }
 
+float HeightMap::getMinHeight() const {
+  return HeightMapMath::getMinVal(*this, CoreLayers::ELEVATION);
+}
 float HeightMap::getMaxHeight() const {
   return HeightMapMath::getMaxVal(*this, CoreLayers::ELEVATION);
 }
 
-float HeightMap::getMinHeight() const {
-  return HeightMapMath::getMinVal(*this, CoreLayers::ELEVATION);
-}
 } // namespace grid_map
-
-float HeightMapMath::getMinVal(const grid_map::HeightMap &map,
-                               const std::string &layer) {
-  const auto &data = map[layer];
-
-  auto fillNaNForFindingMinVal =
-      data.array().isNaN().select(std::numeric_limits<double>::max(), data);
-  return fillNaNForFindingMinVal.minCoeff();
-}
-
-float HeightMapMath::getMaxVal(const grid_map::HeightMap &map,
-                               const std::string &layer) {
-  const auto &data = map[layer];
-
-  // https://www.geeksforgeeks.org/difference-between-stdnumeric_limitst-min-max-and-lowest-in-cpp/
-  auto fillNaNForFindingMaxVal =
-      data.array().isNaN().select(std::numeric_limits<double>::lowest(), data);
-  return fillNaNForFindingMaxVal.maxCoeff();
-}

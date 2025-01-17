@@ -1,6 +1,5 @@
 #include "height_mapping_core/height_filters/FastHeightFilter.h"
-
-namespace height_mapping {
+#include "height_mapping_core/height_map/CloudTypes.h"
 
 FastHeightFilter::FastHeightFilter(float min_height, float max_height)
     : minZ_(min_height), maxZ_(max_height) {}
@@ -28,5 +27,3 @@ FastHeightFilter::filter<Laser>(const pcl::PointCloud<Laser>::Ptr &input,
 template void
 FastHeightFilter::filter<Color>(const pcl::PointCloud<Color>::Ptr &input,
                                 pcl::PointCloud<Color>::Ptr &output);
-
-} // namespace height_mapping

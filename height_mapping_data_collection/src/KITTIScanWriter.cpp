@@ -1,4 +1,4 @@
-#include "height_mapping_io/KITTIScanWriter.h"
+#include "height_mapping_data_collection/KITTIScanWriter.h"
 #include <filesystem>
 #include <fstream>
 #include <iomanip>

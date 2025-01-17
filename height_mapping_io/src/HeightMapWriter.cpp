@@ -7,7 +7,7 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_io/HeightMapWriter.h"
+#include "height_mapping_io/io/HeightMapWriter.h"
 
 bool HeightMapWriter::writeToBag(const grid_map::GridMap &map,
                                  const std::string &bagfile,

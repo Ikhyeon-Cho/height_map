@@ -1,12 +1,10 @@
 #include "height_mapping_data_collection/DataCollectionNode.h"
-#include <chrono>
-#include <fstream>
-#include <tf2/utils.h>
 
 DataCollectionNode::DataCollectionNode() {
 
   getNodeParameters();
   getFrameIDs();
+  setNodeTimers();
   setupROSInterface();
 
   getDataCollectionParameters();
@@ -53,7 +51,7 @@ void DataCollectionNode::setupROSInterface() {
                                 &DataCollectionNode::laserCloudCallback, this);
   // Publishers
   pubHeightMap_ = nh_.advertise<grid_map_msgs::GridMap>(
-      "/height_mapping/data_collection/map", 1);
+      "/height_mapping/data_collection/heightmap_grid", 1);
   pubScan_ = nh_.advertise<sensor_msgs::PointCloud2>(
       "/height_mapping/data_collection/scan", 1);
 
@@ -77,7 +75,7 @@ void DataCollectionNode::initialize() {
 
   globalMap_ = mapReader_.openBagFile(globalMapPath_,
                                       "/height_mapping/globalmap/gridmap");
-  heightFilter_ = std::make_shared<height_mapping::FastHeightFilter>(
+  heightFilter_ = std::make_shared<FastHeightFilter>(
       minHeightThreshold_, maxHeightThreshold_);
   scanWriter_.setDataPath(dataCollectionPath_ + "/velodyne/");
   mapWriter_.setDataPath(dataCollectionPath_ + "/heightmap/");
@@ -85,6 +83,13 @@ void DataCollectionNode::initialize() {
 
 void DataCollectionNode::laserCloudCallback(
     const sensor_msgs::PointCloud2Ptr &msg) {
+
+  if (!receivedCloud_) {
+    std::cout << "\033[1;32m[DataCollectionNode]: Received lidar scan. Collect "
+                 "data to "
+              << dataCollectionPath_ << "\033[0m\n";
+    receivedCloud_ = true;
+  }
 
   // Get Transform matrix: lidar -> baselink -> map
   const auto &lidarFrame = msg->header.frame_id;
@@ -182,19 +187,22 @@ void DataCollectionNode::updateCurrentHeightMap(
 
 void DataCollectionNode::dataCollectionTimerCallback(
     const ros::TimerEvent &event) {
+  std::cout << "\033[1;32m[DataCollectionNode]: Saving data " << dataCount_
+            << "...\033[0m\n";
+
   // Process and save like semantic KITTI format
   scanWriter_.writeScan(processedCloud_);
 
-  // Save height map
-  try {
-    if (!mapWriter_.writeMap(heightMap_)) {
-      std::cout << "\033[1;33m[DataCollectionNode]: Failed to write height "
-                   "map\033[0m\n";
-    }
-  } catch (const std::exception &e) {
-    std::cout << "\033[1;31m[DataCollectionNode]: Error writing height map: "
-              << e.what() << "\033[0m\n";
-  }
+  // Save height map layers
+  std::vector<std::string> layers = {
+      "elevation", "elevation_min",  "elevation_max",      "variance",
+      "intensity", "standard_error", "confidence_interval"};
+  // Temp
+  layers = {"elevation"};
+
+  mapWriter_.write(heightMap_, layers);
+
+  dataCount_++;
 }
 
 void DataCollectionNode::publishTimerCallback(const ros::TimerEvent &event) {
