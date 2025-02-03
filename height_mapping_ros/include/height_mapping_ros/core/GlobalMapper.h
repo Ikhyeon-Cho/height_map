@@ -1,5 +1,5 @@
 /*
- * GlobalMapping.h
+ * GlobalMapper.h
  *
  *  Created on: Dec 2, 2023
  *      Author: Ikhyeon Cho
@@ -34,18 +34,18 @@ template <> struct equal_to<grid_map::Index> {
 };
 } // namespace std
 
-class GlobalMapping {
+class GlobalMapper {
 public:
-  struct Parameters {
-    std::string heightEstimatorType;
-    std::string mapFrame;
-    std::string mapSaveDir;
-    double gridResolution;
-    double mapLengthX;
-    double mapLengthY;
+  struct Config {
+    std::string estimator_type;
+    std::string frame_id;
+    std::string map_save_dir;
+    double map_length_x;
+    double map_length_y;
+    double grid_resolution;
   };
 
-  GlobalMapping(const Parameters &params);
+  GlobalMapper(const Config &cfg);
 
   template <typename PointT> void mapping(const pcl::PointCloud<PointT> &cloud);
 
@@ -67,7 +67,7 @@ private:
                                  const pcl::PointCloud<PointT> &cloud);
 
   grid_map::HeightMap globalmap_;
-  Parameters params_;
+  Config cfg_;
 
   std::unordered_set<grid_map::Index> measured_indices_;
   height_mapping::HeightEstimatorBase::Ptr heightEstimator_;

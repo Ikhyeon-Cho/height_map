@@ -1,5 +1,5 @@
 /*
- * GlobalMappingNode.h
+ * global_mapping_node.h
  *
  *  Created on: Nov 24, 2024
  *      Author: Ikhyeon Cho
@@ -17,7 +17,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
 
-#include "height_mapping_ros/GlobalMapping.h"
+#include "height_mapping_ros/core/GlobalMapper.h"
 #include <height_mapping_io/height_mapping_io.h>
 #include <height_mapping_utils/height_mapping_utils.h>
 
@@ -29,9 +29,9 @@ public:
 private:
   void getNodeParameters();
   void getFrameIDs();
-  void setNodeTimers();
+  void initializeTimers();
   void setupROSInterface();
-  GlobalMapping::Parameters getGlobalMappingParameters();
+  GlobalMapper::Config getGlobalMappingParameters();
 
   void laserCloudCallback(const sensor_msgs::PointCloud2Ptr &msg);
   void rgbCloudCallback(const sensor_msgs::PointCloud2Ptr &msg);
@@ -82,7 +82,7 @@ private:
   std::string mapSavePath_;
 
   // Core mapping object
-  std::unique_ptr<GlobalMapping> globalMapping_;
+  std::unique_ptr<GlobalMapper> globalMapper_;
   utils::TransformHandler tf_;
   HeightMapWriter mapWriter_;
 

@@ -1,5 +1,5 @@
 /*
- * HeightMapping.h
+ * HeightMapper.h
  *
  *  Created on: Aug 17, 2023
  *      Author: Ikhyeon Cho
@@ -15,20 +15,21 @@
 #include <height_mapping_core/height_mapping_core.h>
 #include <height_mapping_msgs/HeightMapMsgs.h>
 
-class HeightMapping {
+namespace height_mapping_ros {
+
+class HeightMapper {
 public:
-  struct Parameters {
-    // Height mapping parameters
-    std::string heightEstimatorType;
-    std::string mapFrame;
-    double mapLengthX;
-    double mapLengthY;
-    double gridResolution;
-    float minHeight;
-    float maxHeight;
+  struct Config {
+    std::string estimator_type;
+    std::string frame_id;
+    double map_length_x;
+    double map_length_y;
+    double grid_resolution;
+    double min_height;
+    double max_height;
   };
 
-  HeightMapping(const Parameters &params);
+  HeightMapper(const Config &cfg);
 
   template <typename PointT>
   void fastHeightFilter(const typename pcl::PointCloud<PointT>::Ptr &cloud,
@@ -77,11 +78,10 @@ private:
   };
 
   grid_map::HeightMap map_;
-  Parameters params_;
+  Config cfg_;
 
   height_mapping::FastHeightFilter heightFilter_;
   height_mapping::HeightEstimatorBase::Ptr heightEstimator_;
   height_mapping::HeightMapRaycaster raycaster_;
-
-  float correction_threshold_{0.15f};
 };
+} // namespace height_mapping_ros

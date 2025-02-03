@@ -37,7 +37,7 @@ void DataCollectionNode::getFrameIDs() {
   baselinkFrame_ = nhFrameID_.param<std::string>("base_link", "base_link");
 }
 
-void DataCollectionNode::setNodeTimers() {
+void DataCollectionNode::initializeTimers() {
 
   dataCollectionTimer_ = nh_.createTimer(
       ros::Duration(dataCollectionPeriod_),

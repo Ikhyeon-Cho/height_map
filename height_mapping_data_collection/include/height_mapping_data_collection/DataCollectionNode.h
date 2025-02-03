@@ -21,7 +21,7 @@ public:
 private:
   void getNodeParameters();
   void getFrameIDs();
-  void setNodeTimers();
+  void initializeTimers();
   void setupROSInterface();
   void getDataCollectionParameters();
 

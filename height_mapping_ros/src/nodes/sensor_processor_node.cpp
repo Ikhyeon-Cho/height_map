@@ -1,5 +1,5 @@
 /*
- * SensorProcessorNode.cpp
+ * sensor_processor_node.cpp
  *
  *  Created on: Nov 25, 2024
  *      Author: Ikhyeon Cho
@@ -7,7 +7,7 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_ros/SensorProcessorNode.h"
+#include "height_mapping_ros/nodes/sensor_processor_node.h"
 
 SensorProcessorNode::SensorProcessorNode() {
 
@@ -199,4 +199,13 @@ void SensorProcessorNode::transformToBaselink(
 
   // Transform point cloud
   transformedCloud = utils::pcl::transformPointcloud<Color>(cloud, transform);
+}
+
+int main(int argc, char **argv) {
+  ros::init(argc, argv, "sensor_processor_node");
+  SensorProcessorNode node;
+
+  ros::spin();
+
+  return 0;
 }

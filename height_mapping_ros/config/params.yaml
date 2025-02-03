@@ -5,13 +5,21 @@ frame_id:
   lidar: "velodyne"
 
 height_mapping_node:
-  lidarCloudTopic: "/velodyne/points"
-  rgbCloudTopic: "/height_mapping/sensor_processor/points"
-  robotPoseUpdateRate: 15.0
-  mapPublishRate: 15.0
-  useLidarCallback: true
-  removeRemoterPoints: true
-  debugMode: false
+  # node parameters
+  lidar_topic: "/velodyne/points"
+  rgbd_topic: "/height_mapping/sensor_processor/points"
+  robot_pose_update_rate: 15.0
+  map_publish_rate: 15.0
+  remove_backward_points: true
+  debug_mode: false
+
+  # map parameters
+  grid_resolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
+  map_length_x: 15.0
+  map_length_y: 15.0
+  height_estimator: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
+  min_height_threshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
+  max_height_threshold: 2.0
 
 global_mapping_node:
   mapSavePath: "$(find height_mapping)/../maps/globalmap.bag"
@@ -25,12 +33,12 @@ sensor_processor_node: # For multiple rgb-d sensors usage
   outputCloudTopic: "/height_mapping/sensor_processor/points"
 
 height_map:
-  gridResolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
-  mapLengthX: 15.0
-  mapLengthY: 15.0
-  heightEstimatorType: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
-  minHeightThreshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
-  maxHeightThreshold: 2.0
+  grid_resolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
+  map_length_x: 15.0
+  map_length_y: 15.0
+  height_estimator: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
+  min_height_threshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
+  max_height_threshold: 2.0
 
 global_map:
   gridResolution: 0.1

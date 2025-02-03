@@ -7,10 +7,11 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_ros/HeightMapping.h"
+#include "height_mapping_ros/core/HeightMapper.h"
 
-HeightMapping::HeightMapping(const Parameters &params)
-    : params_{params}, heightFilter_{params.minHeight, params.maxHeight} {
+namespace height_mapping_ros {
+HeightMapper::HeightMapper(const Config &cfg)
+    : cfg_{cfg}, heightFilter_{cfg.min_height, cfg.max_height} {
 
   paramValidityCheck();
 
@@ -19,45 +20,45 @@ HeightMapping::HeightMapping(const Parameters &params)
   initHeightEstimator();
 }
 
-void HeightMapping::paramValidityCheck() {
+void HeightMapper::paramValidityCheck() {
 
-  if (params_.gridResolution <= 0) {
+  if (cfg_.grid_resolution <= 0) {
     throw std::invalid_argument(
         "[HeightMapping::HeightMapping]: Grid resolution must be positive");
   }
-  if (params_.mapLengthX <= 0 || params_.mapLengthY <= 0) {
+  if (cfg_.map_length_x <= 0 || cfg_.map_length_y <= 0) {
     throw std::invalid_argument(
         "[HeightMapping::HeightMapping]: Map dimensions must be positive");
   }
 }
 
-void HeightMapping::initHeightMap() {
-  map_.setFrameId(params_.mapFrame);
-  map_.setGeometry(grid_map::Length(params_.mapLengthX, params_.mapLengthY),
-                   params_.gridResolution);
+void HeightMapper::initHeightMap() {
+  map_.setFrameId(cfg_.frame_id);
+  map_.setGeometry(grid_map::Length(cfg_.map_length_x, cfg_.map_length_y),
+                   cfg_.grid_resolution);
 }
 
-void HeightMapping::initHeightEstimator() {
+void HeightMapper::initHeightEstimator() {
 
   // Set height estimator
   // - Kalman Filter
   // - Moving Average
   // - StatMean (by default)
 
-  if (params_.heightEstimatorType == "KalmanFilter") {
+  if (cfg_.estimator_type == "KalmanFilter") {
     heightEstimator_ = std::make_unique<height_mapping::KalmanEstimator>();
 
     std::cout << "\033[1;33m[HeightMapping::HeightMapping]: Height estimator "
                  "type --> KalmanFilter \033[0m\n";
 
-  } else if (params_.heightEstimatorType == "MovingAverage") {
+  } else if (cfg_.estimator_type == "MovingAverage") {
     heightEstimator_ =
         std::make_unique<height_mapping::MovingAverageEstimator>();
 
     std::cout << "\033[1;33m[HeightMapping::HeightMapping]: Height estimator "
                  "type --> MovingAverage \033[0m\n";
 
-  } else if (params_.heightEstimatorType == "StatMean") {
+  } else if (cfg_.estimator_type == "StatMean") {
     heightEstimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
 
     std::cout << "\033[1;33m[HeightMapping::HeightMapping]: Height estimator "
@@ -73,7 +74,7 @@ void HeightMapping::initHeightEstimator() {
 }
 
 template <typename PointT>
-void HeightMapping::fastHeightFilter(
+void HeightMapper::fastHeightFilter(
     const typename pcl::PointCloud<PointT>::Ptr &cloud,
     typename pcl::PointCloud<PointT>::Ptr &filtered_cloud) {
 
@@ -81,7 +82,7 @@ void HeightMapping::fastHeightFilter(
 }
 
 template <typename PointT>
-typename pcl::PointCloud<PointT>::Ptr HeightMapping::griddedFilterWithMaxHeight(
+typename pcl::PointCloud<PointT>::Ptr HeightMapper::griddedFilterWithMaxHeight(
     const typename pcl::PointCloud<PointT>::Ptr &cloud, float gridSize) {
 
   if (cloud->empty()) {
@@ -114,7 +115,7 @@ typename pcl::PointCloud<PointT>::Ptr HeightMapping::griddedFilterWithMaxHeight(
 
 template <typename PointT>
 typename pcl::PointCloud<PointT>::Ptr
-HeightMapping::griddedFilterWithMaxHeightAlt(
+HeightMapper::griddedFilterWithMaxHeightAlt(
     const typename pcl::PointCloud<PointT>::Ptr &cloud, float gridSize) {
 
   if (cloud->empty()) {
@@ -162,11 +163,11 @@ HeightMapping::griddedFilterWithMaxHeightAlt(
 
 template <typename PointT>
 typename pcl::PointCloud<PointT>::Ptr
-HeightMapping::mapping(const typename pcl::PointCloud<PointT>::Ptr &cloud) {
+HeightMapper::mapping(const typename pcl::PointCloud<PointT>::Ptr &cloud) {
 
   // 1. Sample pointcloud with max height in each grid cell
   auto griddedCloud =
-      griddedFilterWithMaxHeightAlt<PointT>(cloud, params_.gridResolution);
+      griddedFilterWithMaxHeightAlt<PointT>(cloud, cfg_.grid_resolution);
 
   if (griddedCloud->empty()) {
     return griddedCloud;
@@ -178,12 +179,12 @@ HeightMapping::mapping(const typename pcl::PointCloud<PointT>::Ptr &cloud) {
   return griddedCloud;
 }
 
-void HeightMapping::updateMapOrigin(const grid_map::Position &position) {
+void HeightMapper::updateMapOrigin(const grid_map::Position &position) {
   map_.move(position);
 }
 
 template <typename PointT>
-void HeightMapping::raycasting(
+void HeightMapper::raycasting(
     const Eigen::Vector3f &sensorOrigin,
     const typename pcl::PointCloud<PointT>::Ptr &cloud) {
   if (cloud->empty()) {
@@ -196,41 +197,42 @@ void HeightMapping::raycasting(
 // Explicit instantiation of template functions //
 //////////////////////////////////////////////////
 // Laser
-template void HeightMapping::fastHeightFilter<Laser>(
+template void HeightMapper::fastHeightFilter<Laser>(
     const typename pcl::PointCloud<Laser>::Ptr &cloud,
     typename pcl::PointCloud<Laser>::Ptr &filtered_cloud);
 
 template pcl::PointCloud<Laser>::Ptr
-HeightMapping::griddedFilterWithMaxHeight<Laser>(
+HeightMapper::griddedFilterWithMaxHeight<Laser>(
     const pcl::PointCloud<Laser>::Ptr &cloud, float gridSize);
 
 template pcl::PointCloud<Laser>::Ptr
-HeightMapping::griddedFilterWithMaxHeightAlt<Laser>(
+HeightMapper::griddedFilterWithMaxHeightAlt<Laser>(
     const pcl::PointCloud<Laser>::Ptr &cloud, float gridSize);
 
 template typename pcl::PointCloud<Laser>::Ptr
-HeightMapping::mapping<Laser>(const pcl::PointCloud<Laser>::Ptr &cloud);
+HeightMapper::mapping<Laser>(const pcl::PointCloud<Laser>::Ptr &cloud);
 
-template void HeightMapping::raycasting<Laser>(
+template void HeightMapper::raycasting<Laser>(
     const Eigen::Vector3f &sensorOrigin,
     const typename pcl::PointCloud<Laser>::Ptr &cloud);
 
 // Color
 template pcl::PointCloud<Color>::Ptr
-HeightMapping::griddedFilterWithMaxHeight<Color>(
+HeightMapper::griddedFilterWithMaxHeight<Color>(
     const pcl::PointCloud<Color>::Ptr &cloud, float gridSize);
 
 template pcl::PointCloud<Color>::Ptr
-HeightMapping::griddedFilterWithMaxHeightAlt<Color>(
+HeightMapper::griddedFilterWithMaxHeightAlt<Color>(
     const pcl::PointCloud<Color>::Ptr &cloud, float gridSize);
 
-template void HeightMapping::fastHeightFilter<Color>(
+template void HeightMapper::fastHeightFilter<Color>(
     const typename pcl::PointCloud<Color>::Ptr &cloud,
     typename pcl::PointCloud<Color>::Ptr &filtered_cloud);
 
 template typename pcl::PointCloud<Color>::Ptr
-HeightMapping::mapping<Color>(const pcl::PointCloud<Color>::Ptr &cloud);
+HeightMapper::mapping<Color>(const pcl::PointCloud<Color>::Ptr &cloud);
 
-template void HeightMapping::raycasting<Color>(
+template void HeightMapper::raycasting<Color>(
     const Eigen::Vector3f &sensorOrigin,
     const typename pcl::PointCloud<Color>::Ptr &cloud);
+} // namespace height_mapping_ros

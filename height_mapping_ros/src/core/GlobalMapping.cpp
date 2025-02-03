@@ -7,9 +7,9 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_ros/GlobalMapping.h"
+#include "height_mapping_ros/core/GlobalMapper.h"
 
-GlobalMapping::GlobalMapping(const Parameters &params) : params_(params) {
+GlobalMapper::GlobalMapper(const Config &cfg) : cfg_(cfg) {
 
   initGlobalMap();
 
@@ -18,30 +18,30 @@ GlobalMapping::GlobalMapping(const Parameters &params) : params_(params) {
   measured_indices_.reserve(globalmap_.getSize().prod());
 }
 
-void GlobalMapping::initGlobalMap() {
+void GlobalMapper::initGlobalMap() {
 
-  globalmap_.setFrameId(params_.mapFrame);
+  globalmap_.setFrameId(cfg_.frame_id);
   globalmap_.setPosition(grid_map::Position(0.0, 0.0));
   globalmap_.setGeometry(
-      grid_map::Length(params_.mapLengthX, params_.mapLengthY),
-      params_.gridResolution);
+      grid_map::Length(cfg_.map_length_x, cfg_.map_length_y),
+      cfg_.grid_resolution);
 }
 
-void GlobalMapping::initHeightEstimator() {
+void GlobalMapper::initHeightEstimator() {
 
-  if (params_.heightEstimatorType == "KalmanFilter") {
+  if (cfg_.estimator_type == "KalmanFilter") {
     heightEstimator_ = std::make_unique<height_mapping::KalmanEstimator>();
-  } else if (params_.heightEstimatorType == "MovingAverage") {
+  } else if (cfg_.estimator_type == "MovingAverage") {
     heightEstimator_ =
         std::make_unique<height_mapping::MovingAverageEstimator>();
-  } else if (params_.heightEstimatorType == "StatMean") {
+  } else if (cfg_.estimator_type == "StatMean") {
     heightEstimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
   } else {
     heightEstimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
   }
 }
 template <typename PointT>
-void GlobalMapping::mapping(const pcl::PointCloud<PointT> &cloud) {
+void GlobalMapper::mapping(const pcl::PointCloud<PointT> &cloud) {
 
   updateMeasuredGridIndices<PointT>(globalmap_, cloud);
   heightEstimator_->estimate(globalmap_, cloud);
@@ -49,7 +49,7 @@ void GlobalMapping::mapping(const pcl::PointCloud<PointT> &cloud) {
 
 // Save measured indices for efficiency
 template <typename PointT>
-void GlobalMapping::updateMeasuredGridIndices(
+void GlobalMapper::updateMeasuredGridIndices(
     const grid_map::HeightMap &map, const pcl::PointCloud<PointT> &cloud) {
 
   grid_map::Index cell_index;
@@ -68,26 +68,26 @@ void GlobalMapping::updateMeasuredGridIndices(
   }
 }
 
-void GlobalMapping::raycasting(const Eigen::Vector3f &sensorOrigin,
+void GlobalMapper::raycasting(const Eigen::Vector3f &sensorOrigin,
                                const pcl::PointCloud<Laser> &cloud) {
   raycaster_.correctHeight(globalmap_, cloud, sensorOrigin);
 }
 
-void GlobalMapping::clearMap() { globalmap_.clearAll(); }
+void GlobalMapper::clearMap() { globalmap_.clearAll(); }
 
 //////////////////////////////////////////////////
 // Explicit instantiation of template functions //
 //////////////////////////////////////////////////
 // Laser
 template void
-GlobalMapping::mapping<Laser>(const pcl::PointCloud<Laser> &cloud);
+GlobalMapper::mapping<Laser>(const pcl::PointCloud<Laser> &cloud);
 template void
-GlobalMapping::updateMeasuredGridIndices(const grid_map::HeightMap &map,
+GlobalMapper::updateMeasuredGridIndices(const grid_map::HeightMap &map,
                                          const pcl::PointCloud<Laser> &cloud);
 
 // Color
 template void
-GlobalMapping::mapping<Color>(const pcl::PointCloud<Color> &cloud);
+GlobalMapper::mapping<Color>(const pcl::PointCloud<Color> &cloud);
 template void
-GlobalMapping::updateMeasuredGridIndices(const grid_map::HeightMap &map,
+GlobalMapper::updateMeasuredGridIndices(const grid_map::HeightMap &map,
                                          const pcl::PointCloud<Color> &cloud);

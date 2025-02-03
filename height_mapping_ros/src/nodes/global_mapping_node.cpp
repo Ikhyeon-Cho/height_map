@@ -1,5 +1,5 @@
 /*
- * GlobalMappingNode.cpp
+ * global_mapping_node.cpp
  *
  *  Created on: Nov 24, 2024
  *      Author: Ikhyeon Cho
@@ -7,7 +7,7 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#include "height_mapping_ros/GlobalMappingNode.h"
+#include "height_mapping_ros/nodes/global_mapping_node.h"
 
 GlobalMappingNode::GlobalMappingNode() {
 
@@ -15,12 +15,11 @@ GlobalMappingNode::GlobalMappingNode() {
 
   getFrameIDs();
 
-  setNodeTimers();
+  initializeTimers();
 
   setupROSInterface();
 
-  globalMapping_ =
-      std::make_unique<GlobalMapping>(getGlobalMappingParameters());
+  globalMapper_ = std::make_unique<GlobalMapper>(getGlobalMappingParameters());
 }
 
 void GlobalMappingNode::getNodeParameters() {
@@ -33,7 +32,7 @@ void GlobalMappingNode::getFrameIDs() {
   lidarFrame_ = nhFrameID_.param<std::string>("lidar", "velodyne");
 }
 
-void GlobalMappingNode::setNodeTimers() {
+void GlobalMappingNode::initializeTimers() {
   mapPublishTimer_ =
       nhPriv_.createTimer(ros::Duration(1.0 / mapPublishRate_),
                           &GlobalMappingNode::publishMap, this, false, false);
@@ -61,20 +60,20 @@ void GlobalMappingNode::setupROSInterface() {
                            &GlobalMappingNode::clearMapCallback, this);
 }
 
-GlobalMapping::Parameters GlobalMappingNode::getGlobalMappingParameters() {
+GlobalMapper::Config GlobalMappingNode::getGlobalMappingParameters() {
 
-  GlobalMapping::Parameters params;
-  params.mapFrame = mapFrame_;
-  params.heightEstimatorType =
-      nhMap_.param<std::string>("heightEstimatorType", "StatMean");
-  params.gridResolution = nhGlobalMap_.param<double>("gridResolution", 0.1);
-  params.mapLengthX = nhGlobalMap_.param<double>("mapLengthX", 400.0);
-  params.mapLengthY = nhGlobalMap_.param<double>("mapLengthY", 400.0);
+  GlobalMapper::Config cfg;
+  cfg.frame_id = mapFrame_;
+  cfg.estimator_type =
+      nhGlobalMap_.param<std::string>("heightEstimatorType", "StatMean");
+  cfg.grid_resolution = nhGlobalMap_.param<double>("gridResolution", 0.1);
+  cfg.map_length_x = nhGlobalMap_.param<double>("mapLengthX", 400.0);
+  cfg.map_length_y = nhGlobalMap_.param<double>("mapLengthY", 400.0);
 
   mapSavePath_ = nhGlobalMap_.param<std::string>(
       "mapSavePath",
       std::string("/home/") + std::getenv("USER") + "/Downloads");
-  return params;
+  return cfg;
 }
 
 // Use the preprocessed cloud in height mapping node
@@ -90,7 +89,7 @@ void GlobalMappingNode::laserCloudCallback(
   }
   pcl::PointCloud<Laser> cloud;
   pcl::moveFromROSMsg(*msg, cloud);
-  globalMapping_->mapping(cloud);
+  globalMapper_->mapping(cloud);
 
   auto [get, laser2Map] = tf_.getTransform(lidarFrame_, mapFrame_);
   if (!get)
@@ -98,7 +97,7 @@ void GlobalMappingNode::laserCloudCallback(
   Eigen::Vector3f laserPosition3D(laser2Map.transform.translation.x,
                                   laser2Map.transform.translation.y,
                                   laser2Map.transform.translation.z);
-  globalMapping_->raycasting(laserPosition3D, cloud);
+  globalMapper_->raycasting(laserPosition3D, cloud);
 }
 
 void GlobalMappingNode::rgbCloudCallback(
@@ -113,7 +112,7 @@ void GlobalMappingNode::rgbCloudCallback(
   }
   pcl::PointCloud<Color> cloud;
   pcl::moveFromROSMsg(*msg, cloud);
-  globalMapping_->mapping(cloud);
+  globalMapper_->mapping(cloud);
 }
 
 void GlobalMappingNode::publishMap(const ros::TimerEvent &) {
@@ -128,13 +127,13 @@ void GlobalMappingNode::publishMap(const ros::TimerEvent &) {
   };
   // Visualize global map
   sensor_msgs::PointCloud2 msgCloud;
-  toPointCloud2(globalMapping_->getHeightMap(), layers,
-                globalMapping_->getMeasuredGridIndices(), msgCloud);
+  toPointCloud2(globalMapper_->getHeightMap(), layers,
+                globalMapper_->getMeasuredGridIndices(), msgCloud);
   pubGlobalMap_.publish(msgCloud);
 
   // Visualize map region
   visualization_msgs::Marker msgRegion;
-  HeightMapMsgs::toMapRegion(globalMapping_->getHeightMap(), msgRegion);
+  HeightMapMsgs::toMapRegion(globalMapper_->getHeightMap(), msgRegion);
   pubMapRegion_.publish(msgRegion);
 }
 
@@ -227,7 +226,7 @@ void GlobalMappingNode::toPointCloud2(
 
 bool GlobalMappingNode::clearMapCallback(std_srvs::Empty::Request &req,
                                          std_srvs::Empty::Response &res) {
-  globalMapping_->clearMap();
+  globalMapper_->clearMap();
   return true;
 }
 
@@ -244,11 +243,11 @@ bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req,
     }
 
     // Save GridMap to bag
-    mapWriter_.writeToBag(globalMapping_->getHeightMap(), mapSavePath_,
+    mapWriter_.writeToBag(globalMapper_->getHeightMap(), mapSavePath_,
                           "/height_mapping/globalmap/gridmap");
 
     // Save GridMap to PCD
-    mapWriter_.writeToPCD(globalMapping_->getHeightMap(),
+    mapWriter_.writeToPCD(globalMapper_->getHeightMap(),
                           mapSavePath_.substr(0, mapSavePath_.rfind('.')) +
                               ".pcd");
 
@@ -262,4 +261,13 @@ bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req,
   }
 
   return true;
+}
+
+int main(int argc, char **argv) {
+  ros::init(argc, argv, "global_mapping");
+  GlobalMappingNode node;
+
+  ros::spin();
+
+  return 0;
 }

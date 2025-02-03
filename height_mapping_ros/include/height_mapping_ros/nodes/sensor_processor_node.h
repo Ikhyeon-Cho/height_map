@@ -1,5 +1,5 @@
 /*
- * SensorProcessorNode.h
+ * sensor_processor_node.h
  *
  *  Created on: Nov 25, 2024
  *      Author: Ikhyeon Cho
