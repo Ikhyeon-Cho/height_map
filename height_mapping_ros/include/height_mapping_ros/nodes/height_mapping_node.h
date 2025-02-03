@@ -39,10 +39,11 @@ private:
   // callback functions -> call core functions
   void lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg);
   void rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg);
-  void rayCastingCallback(const sensor_msgs::PointCloud2Ptr &msg);
 
   // Core functions
-  pcl::PointCloud<Laser>::Ptr processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud);
+  pcl::PointCloud<Laser>::Ptr processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
+                                               const geometry_msgs::TransformStamped &lidar2base,
+                                               const geometry_msgs::TransformStamped &base2map);
   void processRGBDCloud();
   void updateMapOrigin(const ros::TimerEvent &event);
   void publishHeightMap(const ros::TimerEvent &event);
@@ -59,7 +60,6 @@ private:
   // Subscribers
   ros::Subscriber sub_lidarscan_;
   ros::Subscriber sub_rgbdscan_;
-  ros::Subscriber sub_mycloud_; // for raycasting
 
   // Publishers
   ros::Publisher pub_heightmap_;
@@ -79,9 +79,6 @@ private:
 
   // State variables
   bool lidarscan_received_{false};
-  bool rgbd_points_received_{false};
-
-  // pointcloud data
-  pcl::PointCloud<Laser>::Ptr cloud_for_raycasting_;
+  bool rgbdscan_received_{false};
 };
 } // namespace height_mapping_ros

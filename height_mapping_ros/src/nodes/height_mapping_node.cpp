@@ -36,7 +36,7 @@ MappingNode::MappingNode() {
 void MappingNode::loadConfig(const ros::NodeHandle &nh) {
 
   // Topic parameters
-  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne_points");
+  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne/points");
   cfg_.rgbdcloud_topic = nh.param<std::string>("rgbd_topic", "/camera/pointcloud/points");
 
   // Timer parameters
@@ -45,7 +45,7 @@ void MappingNode::loadConfig(const ros::NodeHandle &nh) {
 
   // Options
   cfg_.remove_backward_points = nh.param<bool>("remove_backward_points", true);
-  cfg_.debug_mode = nh.param<bool>("debug_mode", false);
+  cfg_.debug_mode = nh.param<bool>("debug_mode", true);
 }
 
 void MappingNode::initializeTimers() {
@@ -74,8 +74,6 @@ void MappingNode::initializeROSCommunication() {
     pub_debug_lidar_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/lidarcloud", 1);
     pub_debug_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/rgbdcloud", 1);
   }
-  sub_mycloud_ =
-      nh_.subscribe(pub_proc_lidar.getTopic(), 1, &MappingNode::rayCastingCallback, this);
 }
 
 void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
@@ -90,45 +88,31 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
               << "Use LiDAR scans for height mapping... \033[0m\n";
   }
 
-  // 1. Get transform matrix
-  geometry_msgs::TransformStamped lidar2base;
-  if (!tf_.lookupTransform(frame_id_.base_link, frame_id_.sensor, lidar2base))
+  // 1. Get transform matrix using tf tree
+  geometry_msgs::TransformStamped lidar2base, base2map;
+  if (!tf_.lookupTransform(frame_id_.base_link, frame_id_.sensor, lidar2base) ||
+      !tf_.lookupTransform(frame_id_.map, frame_id_.base_link, base2map))
     return;
-  geometry_msgs::TransformStamped base2map;
-  if (!tf_.lookupTransform(frame_id_.map, frame_id_.base_link, base2map))
-    return;
-  geometry_msgs::TransformStamped lidar2map = tf_.combineTransforms(lidar2base, base2map);
-
-  Eigen::Vector3f laserPosition3D(lidar2map.transform.translation.x,
-                                  lidar2map.transform.translation.y,
-                                  lidar2map.transform.translation.z);
 
   // 2. Convert ROS msg to PCL data
   auto cloud_raw = boost::make_shared<pcl::PointCloud<Laser>>();
   pcl::moveFromROSMsg(*msg, *cloud_raw);
 
   // 3. Process pointcloud
-  auto cloud_processed = processLidarScan(cloud_raw);
+  auto cloud_processed = processLidarScan(cloud_raw, lidar2base, base2map);
   if (!cloud_processed)
     return;
 
-  // (Optional) Remove remoter points
-  auto cloud_for_mapping = boost::make_shared<pcl::PointCloud<Laser>>();
-  if (cfg_.remove_backward_points) {
-    cloud_for_mapping = pc_utils::filterAngle(cloud_processed, -135.0, 135.0);
-  }
-  cloud_for_mapping = pc_utils::applyTransform(cloud_for_mapping, base2map);
-
-  // Height mapping
+  // 4. Height mapping
+  auto cloud_for_mapping = pc_utils::applyTransform<Laser>(cloud_processed, base2map);
   auto mappedLaserCloud = mapper_->mapping<Laser>(cloud_for_mapping);
 
-  // Raycasting correction: remove dynamic objects
-  cloudForRaycasting = utils::pcl::transformPointcloud<Laser>(cloudForRaycasting, baselink2Map);
-  auto laser2Map = utils::tf::combineTransforms(laser2Baselink, baselink2Map);
-  Eigen::Vector3f laserPosition3D(laser2Map.transform.translation.x,
-                                  laser2Map.transform.translation.y,
-                                  laser2Map.transform.translation.z);
-  mapper_->raycasting<Laser>(laserPosition3D, cloudForRaycasting);
+  // 5. Raycasting correction: remove dynamic objects
+  auto lidar2map = tf_.combineTransforms(lidar2base, base2map);
+  Eigen::Vector3f sensorOrigin3D(lidar2map.transform.translation.x,
+                                 lidar2map.transform.translation.y,
+                                 lidar2map.transform.translation.z);
+  mapper_->raycasting<Laser>(sensorOrigin3D, cloud_processed);
 
   // Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 cloudMsg;
@@ -136,23 +120,30 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   pub_proc_lidar.publish(cloudMsg);
 
   // Debug: publish pointcloud that you want to see
-  if (debugMode_) {
+  if (cfg_.debug_mode) {
     sensor_msgs::PointCloud2 debugMsg;
-    pcl::toROSMsg(*cloudForRaycasting, debugMsg);
-    pubDebugLaserCloud_.publish(debugMsg);
+    pcl::toROSMsg(*cloud_processed, debugMsg);
+    pub_debug_lidar_.publish(debugMsg);
   }
-} // namespace height_mapping_ros
+}
 
 pcl::PointCloud<Laser>::Ptr
-MappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud) {
+MappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
+                              const geometry_msgs::TransformStamped &lidar2base,
+                              const geometry_msgs::TransformStamped &base2map) {
 
-  auto cloud_base = pc_utils::applyTransform(cloud, lidar2base);
+  auto cloud_base = pc_utils::applyTransform<Laser>(cloud, lidar2base);
   auto cloud_processed = boost::make_shared<pcl::PointCloud<Laser>>();
   mapper_->fastHeightFilter<Laser>(cloud_base, cloud_processed);
   auto range = mapper_->getHeightMap().getLength() / 2.0; // mapping range
-  cloud_processed = pc_utils::passThrough(cloud_processed, "x", -range.x(), range.x());
-  cloud_processed = pc_utils::passThrough(cloud_processed, "y", -range.y(), range.y());
-  cloud_processed = pc_utils::applyTransform(cloud_processed, base2map);
+  cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "x", -range.x(), range.x());
+  cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "y", -range.y(), range.y());
+  cloud_processed = pc_utils::applyTransform<Laser>(cloud_processed, base2map);
+
+  // (Optional) Remove remoter points
+  if (cfg_.remove_backward_points) {
+    cloud_processed = pc_utils::filterAngle<Laser>(cloud_processed, -135.0, 135.0);
+  }
 
   if (cloud_processed->size() == 0)
     return nullptr;
@@ -166,8 +157,8 @@ void MappingNode::processRGBDCloud() {
 void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
 
   // First time receiving RGB-D cloud -> start pose update timer
-  if (!rgbd_points_received_) {
-    rgbd_points_received_ = true;
+  if (!rgbdscan_received_) {
+    rgbdscan_received_ = true;
     pose_update_timer_.start();
     map_publish_timer_.start();
     std::cout << "\033[1;33m[HeightMapping::HeightMapping]: Colored cloud Received! "
@@ -175,10 +166,12 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   }
 
   // Get Transform matrix
-  const auto &cameraFrame = msg->header.frame_id;
-  auto [get1, camera2Baselink] = tf_.getTransform(cameraFrame, baselinkFrame_);
-  auto [get2, baselink2Map] = tf_.getTransform(baselinkFrame_, mapFrame_);
-  if (!get1 || !get2)
+  frame_id_.sensor = msg->header.frame_id;
+  geometry_msgs::TransformStamped camera2base;
+  if (!tf_.lookupTransform(frame_id_.base_link, frame_id_.sensor, camera2base))
+    return;
+  geometry_msgs::TransformStamped base2map;
+  if (!tf_.lookupTransform(frame_id_.map, frame_id_.base_link, base2map))
     return;
 
   // Prepare pointcloud
@@ -187,9 +180,9 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
 
   // Preprocess pointcloud
   pcl::moveFromROSMsg(*msg, *inputCloud);
-  auto baselinkCloud = utils::pcl::transformPointcloud<Color>(inputCloud, camera2Baselink);
+  auto baselinkCloud = utils::pcl::transformPointcloud<Color>(inputCloud, camera2base);
   mapper_->fastHeightFilter<Color>(baselinkCloud, processedCloud);
-  if (removeRemoterPoints_) {
+  if (cfg_.remove_backward_points) {
     processedCloud = utils::pcl::filterPointcloudByAngle<Color>(processedCloud, -135.0, 135.0);
   }
 
@@ -202,22 +195,22 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   pub_proc_rgbd_.publish(cloudMsg);
 
   // Debug: publish pointcloud that you want to see
-  if (debugMode_) {
+  if (cfg_.debug_mode) {
     sensor_msgs::PointCloud2 debugMsg;
     pcl::toROSMsg(*processedCloud, debugMsg);
-    pubDebugRGBCloud_.publish(debugMsg);
+    pub_debug_rgbd_.publish(debugMsg);
   }
 }
 
 void MappingNode::updateMapOrigin(const ros::TimerEvent &event) {
 
-  auto [success, baselink2Map] = tf_.getTransform(baselinkFrame_, mapFrame_);
-  if (!success)
+  geometry_msgs::TransformStamped base2map;
+  if (!tf_.lookupTransform(frame_id_.map, frame_id_.base_link, base2map))
     return;
 
   // Update map origin
-  auto robotPosition = grid_map::Position(baselink2Map.transform.translation.x,
-                                          baselink2Map.transform.translation.y);
+  auto robotPosition =
+      grid_map::Position(base2map.transform.translation.x, base2map.transform.translation.y);
   mapper_->updateMapOrigin(robotPosition);
 }
 
