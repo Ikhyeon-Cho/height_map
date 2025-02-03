@@ -12,7 +12,6 @@
 
 #include "height_mapping_ros/core/HeightMapper.h"
 #include "height_mapping_ros/utils/TransformHandler.h"
-#include <height_mapping_utils/height_mapping_utils.h>
 
 namespace height_mapping_ros {
 
@@ -44,15 +43,13 @@ private:
   pcl::PointCloud<Laser>::Ptr processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
                                                const geometry_msgs::TransformStamped &lidar2base,
                                                const geometry_msgs::TransformStamped &base2map);
-  void processRGBDCloud();
+  pcl::PointCloud<Color>::Ptr processRGBDCloud(const pcl::PointCloud<Color>::Ptr &cloud,
+                                               const geometry_msgs::TransformStamped &camera2base,
+                                               const geometry_msgs::TransformStamped &base2map);
   void updateMapOrigin(const ros::TimerEvent &event);
   void publishHeightMap(const ros::TimerEvent &event);
 
-  // ROS members
-  ros::NodeHandle nh_;                         // "/height_mapping/"
-  ros::NodeHandle nhPriv_{"~"};                // "/height_mapping/{node_name}"
-  ros::NodeHandle nhMap_{nh_, "height_map"};   // "/height_mapping/height_map/"
-  ros::NodeHandle nhFrameID_{nh_, "frame_id"}; // "/height_mapping/frame_id/"
+  ros::NodeHandle nh_{"~"};
 
   // Config
   MappingNode::Config cfg_;
@@ -75,7 +72,7 @@ private:
   // Core objects
   std::unique_ptr<HeightMapper> mapper_;
   TransformHandler tf_;
-  TransformHandler::FrameID frame_id_;
+  TransformHandler::FrameID frameID;
 
   // State variables
   bool lidarscan_received_{false};

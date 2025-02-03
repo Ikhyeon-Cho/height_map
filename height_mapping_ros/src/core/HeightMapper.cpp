@@ -163,7 +163,7 @@ HeightMapper::griddedFilterWithMaxHeightAlt(
 
 template <typename PointT>
 typename pcl::PointCloud<PointT>::Ptr
-HeightMapper::mapping(const typename pcl::PointCloud<PointT>::Ptr &cloud) {
+HeightMapper::heightMapping(const typename pcl::PointCloud<PointT>::Ptr &cloud) {
 
   // 1. Sample pointcloud with max height in each grid cell
   auto griddedCloud =
@@ -210,7 +210,7 @@ HeightMapper::griddedFilterWithMaxHeightAlt<Laser>(
     const pcl::PointCloud<Laser>::Ptr &cloud, float gridSize);
 
 template typename pcl::PointCloud<Laser>::Ptr
-HeightMapper::mapping<Laser>(const pcl::PointCloud<Laser>::Ptr &cloud);
+HeightMapper::heightMapping<Laser>(const pcl::PointCloud<Laser>::Ptr &cloud);
 
 template void HeightMapper::raycasting<Laser>(
     const Eigen::Vector3f &sensorOrigin,
@@ -230,7 +230,7 @@ template void HeightMapper::fastHeightFilter<Color>(
     typename pcl::PointCloud<Color>::Ptr &filtered_cloud);
 
 template typename pcl::PointCloud<Color>::Ptr
-HeightMapper::mapping<Color>(const pcl::PointCloud<Color>::Ptr &cloud);
+HeightMapper::heightMapping<Color>(const pcl::PointCloud<Color>::Ptr &cloud);
 
 template void HeightMapper::raycasting<Color>(
     const Eigen::Vector3f &sensorOrigin,

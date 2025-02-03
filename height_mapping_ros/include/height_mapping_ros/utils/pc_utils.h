@@ -146,6 +146,7 @@ inline CloudPtr<T> filterAngle(const CloudPtr<T> &input, double startDeg, double
   if (input->empty())
     return input;
 
+  // Normalize angles to [-180, 180] degree range
   auto norm = [](double a) -> double {
     while (a > 180.0)
       a -= 360.0;
@@ -158,13 +159,13 @@ inline CloudPtr<T> filterAngle(const CloudPtr<T> &input, double startDeg, double
 
   auto output = boost::make_shared<Cloud<T>>();
   output->header = input->header;
-  for (const auto &pt : input->points) {
-    double a = std::atan2(pt.y, pt.x);
+  for (const auto &point : input->points) {
+    double a = std::atan2(point.y, point.x);
     bool keep = (sRad <= eRad) ? (a >= sRad && a <= eRad) : (a >= sRad || a <= eRad);
     if (invert)
       keep = !keep;
     if (keep)
-      output->points.push_back(pt);
+      output->points.push_back(point);
   }
   return output;
 }

@@ -36,7 +36,7 @@ public:
                         typename pcl::PointCloud<PointT>::Ptr &filtered_cloud);
   template <typename PointT>
   typename pcl::PointCloud<PointT>::Ptr
-  mapping(const typename pcl::PointCloud<PointT>::Ptr &cloud);
+  heightMapping(const typename pcl::PointCloud<PointT>::Ptr &cloud);
 
   /*
    * Correct heightmap using raycasting
