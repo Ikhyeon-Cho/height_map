@@ -1,0 +1,25 @@
+<!-- 
+  Launch file for global mapping
+  Parameters:
+  - Use debug_mode:=true to publish debug information
+-->
+<launch>
+  <arg name="use_sensor_processor" default="false" />
+  <arg name="debug_mode" default="false" />
+
+  <!-- Sensor Processing node -->
+  <group if="$(arg use_sensor_processor)">
+    <include file="$(find height_mapping)/launch/include/sensor_processor.launch.xml" />
+  </group>
+
+  <!-- Global mapping node -->
+  <group if="$(arg global_mapping)">
+    <node pkg="height_mapping" type="global_mapping_node" name="global_mapping" output="screen"/>
+  </group>
+
+  <!-- Use grid_map_visualization package for map visualization -->
+  <node pkg="grid_map_visualization" type="grid_map_visualization" name="map_visualization" output="log">
+    <rosparam file="$(find height_mapping)/config/visualization.yaml" />
+  </node>
+
+</launch>

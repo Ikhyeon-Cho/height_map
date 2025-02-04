@@ -60,8 +60,7 @@ private:
 
   // Publishers
   ros::Publisher pub_heightmap_;
-  ros::Publisher pub_proc_lidar;
-  ros::Publisher pub_proc_rgbd_;
+  ros::Publisher pub_scan_processed_;
   ros::Publisher pub_debug_lidar_;
   ros::Publisher pub_debug_rgbd_;
 

@@ -21,20 +21,23 @@
 
 namespace height_mapping_ros {
 
-GlobalMappingNode::GlobalMappingNode() {
+GlobalMappingNode::GlobalMappingNode() : nh_("~") {
 
   // ROS node
-  GlobalMappingNode::loadConfig(nh_);
+  ros::NodeHandle nh_node(nh_, "node");
+  GlobalMappingNode::loadConfig(nh_node);
   initializeTimers();
   initializePubSubs();
   initializeServices();
 
   // Mapper object
-  auto cfg = global_mapper::loadConfig(nh_);
+  ros::NodeHandle nh_mapper(nh_, "mapper");
+  auto cfg = global_mapper::loadConfig(nh_mapper);
   mapper_ = std::make_unique<GlobalMapper>(cfg);
 
   // Transform object
-  frameID = TransformHandler::loadFrameIDs(nh_);
+  ros::NodeHandle nh_frame_id(nh_, "frame_id");
+  frameID = TransformHandler::loadFrameIDs(nh_frame_id);
 
   std::cout << "\033[1;33m[height_mapping_ros::GlobalMappingNode]: "
                "Global mapping node initialized. Waiting for scan inputs...\033[0m\n";
@@ -43,7 +46,7 @@ GlobalMappingNode::GlobalMappingNode() {
 void GlobalMappingNode::loadConfig(const ros::NodeHandle &nh) {
 
   // Topic parameters
-  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne/points");
+  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne_points");
   cfg_.rgbdcloud_topic = nh.param<std::string>("rgbd_topic", "/camera/pointcloud/points");
 
   // Timer parameters
@@ -65,10 +68,8 @@ void GlobalMappingNode::initializePubSubs() {
 
   // Use the preprocessed cloud in height mapping node
   // Subscribers
-  sub_lidarscan_ =
-      nh_.subscribe("/height_mapping/local/lidarcloud", 1, &GlobalMappingNode::lidarScanCallback, this);
-  sub_rgbdscan_ =
-      nh_.subscribe("/height_mapping/local/rgbdcloud", 1, &GlobalMappingNode::rgbdScanCallback, this);
+  sub_lidarscan_ = nh_.subscribe(cfg_.lidarcloud_topic, 1, &GlobalMappingNode::lidarScanCallback, this);
+  sub_rgbdscan_ = nh_.subscribe(cfg_.rgbdcloud_topic, 1, &GlobalMappingNode::rgbdScanCallback, this);
 
   // Publishers
   pub_map_cloud_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/global/map_cloud", 1);
@@ -89,8 +90,8 @@ void GlobalMappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg
     lidarscan_received_ = true;
     frameID.sensor = msg->header.frame_id;
     map_publish_timer_.start();
-    std::cout << "\033[1;32m[height_mapping_ros::GlobalMappingNode]: Laser cloud received! "
-              << "Start global mapping... \033[0m\n";
+    std::cout << "\033[1;32m[height_mapping_ros::GlobalMappingNode]: Pointcloud Received! "
+              << "Use LiDAR scans for global mapping... \033[0m\n";
   }
 
   pcl::PointCloud<Laser> pointcloud;
@@ -250,8 +251,8 @@ bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req, std_srvs:
               << "map to " << mapSavePath_ << "\033[0m\n";
 
   } catch (const std::exception &e) {
-    std::cout << "\033[1;31m[height_mapping_ros::GlobalMappingNode]: Failed to save map: " << std::string(e.what())
-              << "\033[0m\n";
+    std::cout << "\033[1;31m[height_mapping_ros::GlobalMappingNode]: Failed to save map: "
+              << std::string(e.what()) << "\033[0m\n";
   }
 
   return true;

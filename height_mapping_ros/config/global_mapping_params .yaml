@@ -1,0 +1,29 @@
+node:
+  lidar_topic: "/velodyne/points"
+  rgbd_topic: "/height_mapping/sensor_processor/points"
+  map_publish_rate: 10.0
+  remove_backward_points: true
+  debug_mode: false
+
+frame_id:
+  base_link: "base_link"
+  map: "map"
+
+mapper:
+  estimator_type: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
+  map_length_x: 400.0
+  map_length_y: 400.0
+  grid_resolution: 0.1
+  map_save_dir: "$(find height_mapping)/../maps/globalmap.bag"
+
+# sensor_processor_node: # For multiple rgb-d sensors usage
+#   rgbCloudTopics:
+#     - "/camera_front/pointcloud/points"
+#     - "/camera_left/pointcloud/points"
+#     - "/camera_right/pointcloud/points"
+#   outputCloudTopic: "/height_mapping/sensor_processor/points"
+
+# sensor_processor:
+#   downsamplingResolution: 0.02 # [m/voxel]
+#   minRangeThreshold: 0.3 # [m]
+#   maxRangeThreshold: 15.0 # [m]

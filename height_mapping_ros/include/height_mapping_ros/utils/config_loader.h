@@ -21,13 +21,6 @@ static HeightMapper::Config loadConfig(const ros::NodeHandle &nh) {
   nh.param<double>("min_height_threshold", cfg.min_height, -0.2);
   nh.param<double>("max_height_threshold", cfg.max_height, 1.5);
 
-  std::cout << "estimator_type: " << cfg.estimator_type << std::endl;
-  std::cout << "frame_id: " << cfg.frame_id << std::endl;
-  std::cout << "map_length_x: " << cfg.map_length_x << std::endl;
-  std::cout << "map_length_y: " << cfg.map_length_y << std::endl;
-  std::cout << "grid_resolution: " << cfg.grid_resolution << std::endl;
-  std::cout << "min_height: " << cfg.min_height << std::endl;
-  std::cout << "max_height: " << cfg.max_height << std::endl;
   return cfg;
 }
 } // namespace height_mapper

@@ -24,8 +24,8 @@ MappingNode::MappingNode() : nh_("~") {
   initializePubSubs();
 
   // Mapper object
-  ros::NodeHandle nh_mapping(nh_, "mapping");
-  auto cfg = height_mapper::loadConfig(nh_mapping);
+  ros::NodeHandle nh_mapper(nh_, "mapper");
+  auto cfg = height_mapper::loadConfig(nh_mapper);
   mapper_ = std::make_unique<HeightMapper>(cfg);
 
   // Transform object
@@ -69,9 +69,8 @@ void MappingNode::initializePubSubs() {
   sub_rgbdscan_ = nh_.subscribe(cfg_.rgbdcloud_topic, 1, &MappingNode::rgbdScanCallback, this);
 
   // Publishers
-  pub_heightmap_ = nh_.advertise<grid_map_msgs::GridMap>("/height_mapping/local/gridmap", 1);
-  pub_proc_lidar = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/lidarcloud", 1);
-  pub_proc_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/rgbdcloud", 1);
+  pub_heightmap_ = nh_.advertise<grid_map_msgs::GridMap>("/height_mapping/local/heightmap", 1);
+  pub_scan_processed_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/scan_processed", 1);
 
   if (cfg_.debug_mode) {
     pub_debug_lidar_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/lidarcloud", 1);
@@ -87,7 +86,7 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
     frameID.sensor = msg->header.frame_id;
     pose_update_timer_.start();
     map_publish_timer_.start();
-    std::cout << "\033[1;33m[height_mapping_ros::MappingNode]: Pointcloud Received! "
+    std::cout << "\033[1;32m[height_mapping_ros::MappingNode]: Pointcloud Received! "
               << "Use LiDAR scans for height mapping... \033[0m\n";
   }
 
@@ -118,7 +117,7 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   // 6. Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 msg_cloud;
   pcl::toROSMsg(*scan_rasterized, msg_cloud);
-  pub_proc_lidar.publish(msg_cloud);
+  pub_scan_processed_.publish(msg_cloud);
 
   // Debug: publish pointcloud that you want to see
   if (cfg_.debug_mode) {
@@ -161,7 +160,7 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   // Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 cloudMsg;
   pcl::toROSMsg(*cloud_mapped, cloudMsg);
-  pub_proc_rgbd_.publish(cloudMsg);
+  pub_scan_processed_.publish(cloudMsg);
 
   // Debug: publish pointcloud that you want to see
   if (cfg_.debug_mode) {

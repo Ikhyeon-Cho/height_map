@@ -7,7 +7,6 @@
   - Use debug_mode:=true to publish debug information
 -->
 <launch>
-  <arg name="use_lidar" default="true" />
   <arg name="use_sensor_processor" default="false" />
   <arg name="global_mapping" default="false" />
   <arg name="debug_mode" default="false" />
@@ -17,7 +16,6 @@
     <arg name="use_sensor_processor" value="$(arg use_sensor_processor)" />
     <arg name="global_mapping" value="$(arg global_mapping)" />
     <arg name="debug_mode" value="$(arg debug_mode)" />
-    <arg name="use_lidar" value="$(arg use_lidar)" />
   </include>
 
   <!-- Rviz -->

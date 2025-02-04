@@ -26,7 +26,7 @@ public:
       transform = tf_buffer_.lookupTransform(target_frame, source_frame, time, timeout);
       return true;
     } catch (tf2::TransformException &ex) {
-      ROS_WARN_STREAM("TF lookup failed: " << ex.what());
+      ROS_WARN_STREAM_DELAYED_THROTTLE(1.0, "TF lookup failed: " << ex.what());
       return false;
     }
   }
