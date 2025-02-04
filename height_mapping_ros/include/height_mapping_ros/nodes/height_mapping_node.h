@@ -33,7 +33,7 @@ public:
 private:
   // init functions
   void initializeTimers();
-  void initializeROSCommunication();
+  void initializePubSubs();
 
   // callback functions -> call core functions
   void lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg);
@@ -49,7 +49,7 @@ private:
   void updateMapOrigin(const ros::TimerEvent &event);
   void publishHeightMap(const ros::TimerEvent &event);
 
-  ros::NodeHandle nh_{"~"};
+  ros::NodeHandle nh_;
 
   // Config
   MappingNode::Config cfg_;

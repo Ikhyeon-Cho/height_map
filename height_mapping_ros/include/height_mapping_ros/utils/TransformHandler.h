@@ -1,11 +1,9 @@
 #pragma once
 
-#include <ros/ros.h>
-#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
-#include <geometry_msgs/TransformStamped.h>
-#include <tf2/LinearMath/Transform.h>
-#include <tf2/convert.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 class TransformHandler {
 public:
@@ -21,8 +19,7 @@ public:
    * @return True if successful, false otherwise.
    */
   bool lookupTransform(const std::string &target_frame, const std::string &source_frame,
-                       geometry_msgs::TransformStamped &transform,
-                       const ros::Time &time = ros::Time(0),
+                       geometry_msgs::TransformStamped &transform, const ros::Time &time = ros::Time(0),
                        const ros::Duration &timeout = ros::Duration(0.1)) {
 
     try {
@@ -34,9 +31,8 @@ public:
     }
   }
 
-  static geometry_msgs::TransformStamped
-  combineTransforms(const geometry_msgs::TransformStamped &t1_msg,
-                    const geometry_msgs::TransformStamped &t2_msg) {
+  static geometry_msgs::TransformStamped combineTransforms(const geometry_msgs::TransformStamped &t1_msg,
+                                                           const geometry_msgs::TransformStamped &t2_msg) {
     tf2::Transform t1, t2;
     tf2::fromMsg(t1_msg.transform, t1);
     tf2::fromMsg(t2_msg.transform, t2);

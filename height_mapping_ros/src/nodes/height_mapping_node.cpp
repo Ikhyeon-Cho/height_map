@@ -8,26 +8,29 @@
  */
 
 #include "height_mapping_ros/nodes/height_mapping_node.h"
-#include "height_mapping_ros/nodes/config_loader.h"
+#include "height_mapping_ros/utils/config_loader.h"
 #include "height_mapping_ros/utils/pc_utils.h"
 #include <grid_map_ros/GridMapRosConverter.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 
 namespace height_mapping_ros {
 
-MappingNode::MappingNode() {
+MappingNode::MappingNode() : nh_("~") {
 
   // ROS node
-  MappingNode::loadConfig(nh_);
+  ros::NodeHandle nh_node(nh_, "node");
+  MappingNode::loadConfig(nh_node);
   initializeTimers();
-  initializeROSCommunication();
+  initializePubSubs();
 
   // Mapper object
-  auto cfg = height_mapper::loadConfig(nh_);
+  ros::NodeHandle nh_mapping(nh_, "mapping");
+  auto cfg = height_mapper::loadConfig(nh_mapping);
   mapper_ = std::make_unique<HeightMapper>(cfg);
 
   // Transform object
-  frameID = TransformHandler::loadFrameIDs(nh_);
+  ros::NodeHandle nh_frame_id(nh_, "frame_id");
+  frameID = TransformHandler::loadFrameIDs(nh_frame_id);
 
   std::cout << "\033[1;33m[height_mapping_ros::MappingNode]: "
                "Height mapping node initialized. Waiting for scan inputs...\033[0m\n";
@@ -36,7 +39,7 @@ MappingNode::MappingNode() {
 void MappingNode::loadConfig(const ros::NodeHandle &nh) {
 
   // Topic parameters
-  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne/points");
+  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne_points");
   cfg_.rgbdcloud_topic = nh.param<std::string>("rgbd_topic", "/camera/pointcloud/points");
 
   // Timer parameters
@@ -53,22 +56,22 @@ void MappingNode::initializeTimers() {
   auto robot_pose_update_duration = ros::Duration(1.0 / cfg_.robot_pose_update_rate);
   auto heightmap_publish_duration = ros::Duration(1.0 / cfg_.map_publish_rate);
 
-  pose_update_timer_ = nh_.createTimer(robot_pose_update_duration, &MappingNode::updateMapOrigin,
-                                       this, false, false);
-  map_publish_timer_ = nh_.createTimer(heightmap_publish_duration, &MappingNode::publishHeightMap,
-                                       this, false, false);
+  pose_update_timer_ =
+      nh_.createTimer(robot_pose_update_duration, &MappingNode::updateMapOrigin, this, false, false);
+  map_publish_timer_ =
+      nh_.createTimer(heightmap_publish_duration, &MappingNode::publishHeightMap, this, false, false);
 }
 
-void MappingNode::initializeROSCommunication() {
+void MappingNode::initializePubSubs() {
 
   // Subscribers
   sub_lidarscan_ = nh_.subscribe(cfg_.lidarcloud_topic, 1, &MappingNode::lidarScanCallback, this);
   sub_rgbdscan_ = nh_.subscribe(cfg_.rgbdcloud_topic, 1, &MappingNode::rgbdScanCallback, this);
 
   // Publishers
-  pub_heightmap_ = nh_.advertise<grid_map_msgs::GridMap>("mapping/gridmap", 1);
-  pub_proc_lidar = nh_.advertise<sensor_msgs::PointCloud2>("preprocessor/lidarcloud", 1);
-  pub_proc_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("preprocessor/rgbdcloud", 1);
+  pub_heightmap_ = nh_.advertise<grid_map_msgs::GridMap>("/height_mapping/local/gridmap", 1);
+  pub_proc_lidar = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/lidarcloud", 1);
+  pub_proc_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/rgbdcloud", 1);
 
   if (cfg_.debug_mode) {
     pub_debug_lidar_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/lidarcloud", 1);
@@ -89,8 +92,8 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   }
 
   // 1. Get transform matrix using tf tree
-  geometry_msgs::TransformStamped lidar2base, base2map;
-  if (!tf_.lookupTransform(frameID.base_link, frameID.sensor, lidar2base) ||
+  geometry_msgs::TransformStamped sensor2base, base2map;
+  if (!tf_.lookupTransform(frameID.base_link, frameID.sensor, sensor2base) ||
       !tf_.lookupTransform(frameID.map, frameID.base_link, base2map))
     return;
 
@@ -99,19 +102,18 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   pcl::moveFromROSMsg(*msg, *scan_raw);
 
   // 3. Process input scan
-  auto scan_preprocessed = processLidarScan(scan_raw, lidar2base, base2map);
+  auto scan_preprocessed = processLidarScan(scan_raw, sensor2base, base2map);
   if (!scan_preprocessed)
     return;
 
   // 4. Height mapping
-  auto scan_rasterized = mapper_->heightMapping<Laser>(scan_preprocessed);
+  auto scan_rasterized = mapper_->heightMapping(scan_preprocessed);
 
   // 5. Raycasting correction: remove dynamic objects
-  auto lidar2map = tf_.combineTransforms(lidar2base, base2map);
-  Eigen::Vector3f sensorOrigin3D(lidar2map.transform.translation.x,
-                                 lidar2map.transform.translation.y,
-                                 lidar2map.transform.translation.z);
-  mapper_->raycasting<Laser>(sensorOrigin3D, scan_preprocessed);
+  auto sensor2map = tf_.combineTransforms(sensor2base, base2map);
+  Eigen::Vector3f sensorOrigin3D(sensor2map.transform.translation.x, sensor2map.transform.translation.y,
+                                 sensor2map.transform.translation.z);
+  mapper_->raycasting(sensorOrigin3D, scan_preprocessed);
 
   // 6. Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 msg_cloud;
@@ -169,14 +171,13 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   }
 }
 
-pcl::PointCloud<Laser>::Ptr
-MappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
-                              const geometry_msgs::TransformStamped &lidar2base,
-                              const geometry_msgs::TransformStamped &base2map) {
+pcl::PointCloud<Laser>::Ptr MappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
+                                                          const geometry_msgs::TransformStamped &lidar2base,
+                                                          const geometry_msgs::TransformStamped &base2map) {
   // 1. Filter local pointcloud
-  auto cloud_base = utils::pcl::transformPointcloud<Laser>(cloud, lidar2base);
+  auto cloud_base = pc_utils::applyTransform<Laser>(cloud, lidar2base);
   auto cloud_processed = boost::make_shared<pcl::PointCloud<Laser>>();
-  mapper_->fastHeightFilter<Laser>(cloud_base, cloud_processed);
+  mapper_->fastHeightFilter(cloud_base, cloud_processed);
   auto range = mapper_->getHeightMap().getLength() / 2.0; // mapping range
   cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "x", -range.x(), range.x());
   cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "y", -range.y(), range.y());
@@ -193,17 +194,21 @@ MappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
   return cloud_processed;
 }
 
-pcl::PointCloud<Color>::Ptr
-MappingNode::processRGBDCloud(const pcl::PointCloud<Color>::Ptr &cloud,
-                              const geometry_msgs::TransformStamped &camera2base,
-                              const geometry_msgs::TransformStamped &base2map) {
-  auto cloud_base = utils::pcl::transformPointcloud<Color>(cloud, camera2base);
+pcl::PointCloud<Color>::Ptr MappingNode::processRGBDCloud(const pcl::PointCloud<Color>::Ptr &cloud,
+                                                          const geometry_msgs::TransformStamped &camera2base,
+                                                          const geometry_msgs::TransformStamped &base2map) {
+
+  auto cloud_base = pc_utils::applyTransform<Color>(cloud, camera2base);
   auto cloud_processed = boost::make_shared<pcl::PointCloud<Color>>();
   mapper_->fastHeightFilter<Color>(cloud_base, cloud_processed);
   auto range = mapper_->getHeightMap().getLength() / 2.0; // mapping range
   cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "x", -range.x(), range.x());
   cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "y", -range.y(), range.y());
   cloud_processed = pc_utils::applyTransform<Color>(cloud_processed, base2map);
+
+  // (Optional) Remove remoter points
+  if (cfg_.remove_backward_points)
+    cloud_processed = pc_utils::filterAngle<Color>(cloud_processed, -135.0, 135.0);
 
   if (cloud_processed->empty())
     return nullptr;
@@ -219,7 +224,7 @@ void MappingNode::updateMapOrigin(const ros::TimerEvent &event) {
   // Update map origin
   auto robot_position =
       grid_map::Position(base2map.transform.translation.x, base2map.transform.translation.y);
-  mapper_->updateMapOrigin(robot_position);
+  mapper_->moveMapOrigin(robot_position);
 }
 
 void MappingNode::publishHeightMap(const ros::TimerEvent &event) {

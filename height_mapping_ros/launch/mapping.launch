@@ -12,28 +12,28 @@
   <arg name="global_mapping" default="false" />
   <arg name="debug_mode" default="false" />
 
-  <group ns="height_mapping">
-    <!-- Load parameters -->
-    <rosparam file="$(find height_mapping)/config/params.yaml" command="load" subst_value="true" />
+  <!-- <group ns="height_mapping"> -->
+  <!-- Load parameters -->
+  <rosparam file="$(find height_mapping)/config/params.yaml" command="load" subst_value="true" />
 
-    <!-- Sensor Processing node -->
-    <group if="$(arg use_sensor_processor)">
-      <include file="$(find height_mapping)/launch/include/sensor_processor.launch.xml" />
-    </group>
-
-    <!-- Mapping node -->
-    <node pkg="height_mapping" type="height_mapping_node" name="height_mapping_node" output="screen">
-    </node>
-
-    <!-- Use grid_map_visualization package for map visualization -->
-    <node pkg="grid_map_visualization" type="grid_map_visualization" name="map_visualization_node" output="log">
-      <rosparam file="$(find height_mapping)/config/visualization.yaml" />
-    </node>
-
-    <!-- Global mapping node -->
-    <group if="$(arg global_mapping)">
-      <node pkg="height_mapping" type="global_mapping_node" name="global_mapping_node" output="screen" />
-    </group>
+  <!-- Sensor Processing node -->
+  <group if="$(arg use_sensor_processor)">
+    <include file="$(find height_mapping)/launch/include/sensor_processor.launch.xml" />
   </group>
+
+  <!-- Mapping node -->
+  <node pkg="height_mapping" type="height_mapping_node" name="height_mapping" output="screen">
+  </node>
+
+  <!-- Use grid_map_visualization package for map visualization -->
+  <node pkg="grid_map_visualization" type="grid_map_visualization" name="map_visualization" output="log">
+    <rosparam file="$(find height_mapping)/config/visualization.yaml" />
+  </node>
+
+  <!-- Global mapping node -->
+  <group if="$(arg global_mapping)">
+    <node pkg="height_mapping" type="global_mapping_node" name="global_mapping" output="screen" />
+  </group>
+  <!-- </group> -->
 
 </launch>

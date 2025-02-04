@@ -37,14 +37,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-# Sensor processor node
-add_executable(sensor_processor_node 
-  src/nodes/sensor_processor_node.cpp)
-target_link_libraries(sensor_processor_node
-  ${PCL_LIBRARIES}
-  ${catkin_LIBRARIES}
-)
-
 # Height mapping node
 add_executable(height_mapping_node 
   src/nodes/height_mapping_node.cpp
@@ -57,10 +49,18 @@ target_link_libraries(height_mapping_node
 # Global mapping node
 add_executable(global_mapping_node 
   src/nodes/global_mapping_node.cpp
-  src/core/GlobalMapping.cpp
+  src/core/GlobalMapper.cpp
 )
 target_link_libraries(global_mapping_node
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES}
   ${YAML_CPP_LIBRARIES}
+)
+
+# Sensor processor node
+add_executable(sensor_processor_node 
+  src/nodes/sensor_processor_node.cpp)
+target_link_libraries(sensor_processor_node
+  ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES}
 )

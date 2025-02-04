@@ -1,27 +1,25 @@
-frame_id:
-  base_link: "base_link"
-  odom: "odom"
-  map: "map"
-  lidar: "velodyne"
+height_mapping:
+  node:
+    lidar_topic: "/velodyne/points"
+    rgbd_topic: "/height_mapping/sensor_processor/points"
+    robot_pose_update_rate: 15.0
+    map_publish_rate: 15.0
+    debug_mode: false
+    remove_backward_points: true
 
-height_mapping_node:
-  # node parameters
-  lidar_topic: "/velodyne/points"
-  rgbd_topic: "/height_mapping/sensor_processor/points"
-  robot_pose_update_rate: 15.0
-  map_publish_rate: 15.0
-  remove_backward_points: true
-  debug_mode: false
+  frame_id:
+    base_link: "base_link"
+    map: "map"
 
-  # map parameters
-  grid_resolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
-  map_length_x: 15.0
-  map_length_y: 15.0
-  height_estimator: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
-  min_height_threshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
-  max_height_threshold: 2.0
+  mapping:
+    height_estimator: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
+    map_length_x: 15.0
+    map_length_y: 15.0
+    grid_resolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
+    min_height_threshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
+    max_height_threshold: 2.0
 
-global_mapping_node:
+global_mapping:
   mapSavePath: "$(find height_mapping)/../maps/globalmap.bag"
   mapPublishRate: 10.0
 
@@ -31,14 +29,6 @@ global_mapping_node:
 #     - "/camera_left/pointcloud/points"
 #     - "/camera_right/pointcloud/points"
 #   outputCloudTopic: "/height_mapping/sensor_processor/points"
-
-height_map:
-  grid_resolution: 0.1 # rgb-d: 0.04, lidar: 0.05 ~ 0.1 [m/grid]
-  map_length_x: 15.0
-  map_length_y: 15.0
-  height_estimator: "StatMean" # "StatMean", "KalmanFilter", "MovingAverage"
-  min_height_threshold: -0.2 # indoor: -0.05, outdoor: -0.2 [meter]
-  max_height_threshold: 2.0
 
 global_map:
   gridResolution: 0.1

@@ -2,7 +2,7 @@
 
 namespace height_mapping {
 
-FastHeightFilter::FastHeightFilter(float min_height, float max_height)
+FastHeightFilter::FastHeightFilter(double min_height, double max_height)
     : minZ_(min_height), maxZ_(max_height) {}
 
 template <typename PointT>

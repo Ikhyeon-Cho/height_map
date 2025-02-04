@@ -18,14 +18,14 @@ class FastHeightFilter {
 public:
   using Ptr = std::shared_ptr<FastHeightFilter>;
 
-  FastHeightFilter(float minZ, float maxZ);
+  FastHeightFilter(double minZ, double maxZ);
 
   template <typename PointT>
   void filter(const typename pcl::PointCloud<PointT>::Ptr &cloud,
               typename pcl::PointCloud<PointT>::Ptr &cloudFiltered);
 
 private:
-  float minZ_, maxZ_;
+  double minZ_, maxZ_;
 };
 
 } // namespace height_mapping

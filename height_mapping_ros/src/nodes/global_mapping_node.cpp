@@ -8,139 +8,142 @@
  */
 
 #include "height_mapping_ros/nodes/global_mapping_node.h"
+#include "height_mapping_ros/utils/config_loader.h"
+#include <height_mapping_msgs/HeightMapMsgs.h>
+
+#include <sensor_msgs/point_cloud2_iterator.h>
+#include <grid_map_cv/GridMapCvConverter.hpp>
+#include <grid_map_ros/GridMapRosConverter.hpp>
+#include <pcl_conversions/pcl_conversions.h>
+#include <rosbag/bag.h>
+#include <visualization_msgs/Marker.h>
+#include <filesystem>
+
+namespace height_mapping_ros {
 
 GlobalMappingNode::GlobalMappingNode() {
 
-  getNodeParameters();
-
-  getFrameIDs();
-
+  // ROS node
+  GlobalMappingNode::loadConfig(nh_);
   initializeTimers();
+  initializePubSubs();
+  initializeServices();
 
-  setupROSInterface();
+  // Mapper object
+  auto cfg = global_mapper::loadConfig(nh_);
+  mapper_ = std::make_unique<GlobalMapper>(cfg);
 
-  globalMapper_ = std::make_unique<GlobalMapper>(getGlobalMappingParameters());
+  // Transform object
+  frameID = TransformHandler::loadFrameIDs(nh_);
+
+  std::cout << "\033[1;33m[height_mapping_ros::GlobalMappingNode]: "
+               "Global mapping node initialized. Waiting for scan inputs...\033[0m\n";
 }
 
-void GlobalMappingNode::getNodeParameters() {
-  mapPublishRate_ = nhPriv_.param<double>("mapPublishRate", 10.0);
-}
+void GlobalMappingNode::loadConfig(const ros::NodeHandle &nh) {
 
-void GlobalMappingNode::getFrameIDs() {
-  baselinkFrame_ = nhFrameID_.param<std::string>("base_link", "base_link");
-  mapFrame_ = nhFrameID_.param<std::string>("map", "map");
-  lidarFrame_ = nhFrameID_.param<std::string>("lidar", "velodyne");
+  // Topic parameters
+  cfg_.lidarcloud_topic = nh.param<std::string>("lidar_topic", "/velodyne/points");
+  cfg_.rgbdcloud_topic = nh.param<std::string>("rgbd_topic", "/camera/pointcloud/points");
+
+  // Timer parameters
+  cfg_.map_publish_rate = nh.param<double>("map_publish_rate", 10.0);
+
+  // Options
+  cfg_.remove_backward_points = nh.param<bool>("remove_backward_points", false);
+  cfg_.debug_mode = nh.param<bool>("debug_mode", false);
 }
 
 void GlobalMappingNode::initializeTimers() {
-  mapPublishTimer_ =
-      nhPriv_.createTimer(ros::Duration(1.0 / mapPublishRate_),
-                          &GlobalMappingNode::publishMap, this, false, false);
+
+  auto map_publish_duration = ros::Duration(1.0 / cfg_.map_publish_rate);
+  map_publish_timer_ =
+      nh_.createTimer(map_publish_duration, &GlobalMappingNode::publishPointCloudMap, this, false, false);
 }
 
-void GlobalMappingNode::setupROSInterface() {
+void GlobalMappingNode::initializePubSubs() {
+
+  // Use the preprocessed cloud in height mapping node
   // Subscribers
-  subLaserCloud_ = nh_.subscribe("/height_mapping/mapping/lasercloud", 1,
-                                 &GlobalMappingNode::laserCloudCallback, this);
-  subRGBCloud_ = nh_.subscribe("/height_mapping/mapping/rgbdcloud", 1,
-                               &GlobalMappingNode::rgbCloudCallback, this);
+  sub_lidarscan_ =
+      nh_.subscribe("/height_mapping/local/lidarcloud", 1, &GlobalMappingNode::lidarScanCallback, this);
+  sub_rgbdscan_ =
+      nh_.subscribe("/height_mapping/local/rgbdcloud", 1, &GlobalMappingNode::rgbdScanCallback, this);
 
   // Publishers
-  pubGlobalMap_ = nh_.advertise<sensor_msgs::PointCloud2>(
-      "/height_mapping/globalmap/pointcloud", 1);
-  pubMapRegion_ = nh_.advertise<visualization_msgs::Marker>(
-      "/height_mapping/globalmap/region", 1);
-
-  // Services
-  srvSaveMapToBag_ =
-      nh_.advertiseService("/height_mapping/global_mapping/save_map",
-                           &GlobalMappingNode::saveMapCallback, this);
-  srvClearMap_ =
-      nh_.advertiseService("/height_mapping/global_mapping/clear_map",
-                           &GlobalMappingNode::clearMapCallback, this);
+  pub_map_cloud_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/global/map_cloud", 1);
+  pub_map_region_ = nh_.advertise<visualization_msgs::Marker>("/height_mapping/global/map_region", 1);
 }
 
-GlobalMapper::Config GlobalMappingNode::getGlobalMappingParameters() {
+void GlobalMappingNode::initializeServices() {
 
-  GlobalMapper::Config cfg;
-  cfg.frame_id = mapFrame_;
-  cfg.estimator_type =
-      nhGlobalMap_.param<std::string>("heightEstimatorType", "StatMean");
-  cfg.grid_resolution = nhGlobalMap_.param<double>("gridResolution", 0.1);
-  cfg.map_length_x = nhGlobalMap_.param<double>("mapLengthX", 400.0);
-  cfg.map_length_y = nhGlobalMap_.param<double>("mapLengthY", 400.0);
-
-  mapSavePath_ = nhGlobalMap_.param<std::string>(
-      "mapSavePath",
-      std::string("/home/") + std::getenv("USER") + "/Downloads");
-  return cfg;
+  srv_save_map_ =
+      nh_.advertiseService("/height_mapping/global/save_map", &GlobalMappingNode::saveMapCallback, this);
+  srv_clear_map_ =
+      nh_.advertiseService("/height_mapping/global/clear_map", &GlobalMappingNode::clearMapCallback, this);
 }
 
-// Use the preprocessed cloud in height mapping node
-void GlobalMappingNode::laserCloudCallback(
-    const sensor_msgs::PointCloud2Ptr &msg) {
+void GlobalMappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
 
-  if (!laserReceived_) {
-    laserReceived_ = true;
-    mapPublishTimer_.start();
-    std::cout
-        << "\033[1;32m[HeightMapping::GlobalMapping]: Laser cloud received! "
-        << "Start global mapping... \033[0m\n";
+  if (!lidarscan_received_) {
+    lidarscan_received_ = true;
+    frameID.sensor = msg->header.frame_id;
+    map_publish_timer_.start();
+    std::cout << "\033[1;32m[height_mapping_ros::GlobalMappingNode]: Laser cloud received! "
+              << "Start global mapping... \033[0m\n";
   }
-  pcl::PointCloud<Laser> cloud;
-  pcl::moveFromROSMsg(*msg, cloud);
-  globalMapper_->mapping(cloud);
 
-  auto [get, laser2Map] = tf_.getTransform(lidarFrame_, mapFrame_);
-  if (!get)
-    return;
-  Eigen::Vector3f laserPosition3D(laser2Map.transform.translation.x,
-                                  laser2Map.transform.translation.y,
-                                  laser2Map.transform.translation.z);
-  globalMapper_->raycasting(laserPosition3D, cloud);
+  pcl::PointCloud<Laser> pointcloud;
+  pcl::moveFromROSMsg(*msg, pointcloud);
+  mapper_->mapping(pointcloud);
+
+  // TODO: Raycasting needs sensor origin
+  // geometry_msgs::TransformStamped t;
+  // if (!tf_.lookupTransform(frameID.map, frameID.sensor, t))
+  //   return;
+
+  // Eigen::Vector3f laserPosition3D(t.transform.translation.x, t.transform.translation.y,
+  //                                 t.transform.translation.z);
+  // mapper_->raycasting(laserPosition3D, pointcloud);
 }
 
-void GlobalMappingNode::rgbCloudCallback(
-    const sensor_msgs::PointCloud2Ptr &msg) {
+void GlobalMappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
 
-  if (!rgbReceived_) {
-    rgbReceived_ = true;
-    mapPublishTimer_.start();
-    std::cout
-        << "\033[1;32m[HeightMapping::GlobalMapping]: Colored cloud received! "
-        << "Start global mapping... \033[0m\n";
+  if (!rgbdscan_received_) {
+    rgbdscan_received_ = true;
+    frameID.sensor = msg->header.frame_id;
+    map_publish_timer_.start();
+    std::cout << "\033[1;32m[height_mapping_ros::GlobalMappingNode]: Colored cloud received! "
+              << "Start global mapping... \033[0m\n";
   }
+
   pcl::PointCloud<Color> cloud;
   pcl::moveFromROSMsg(*msg, cloud);
-  globalMapper_->mapping(cloud);
+  mapper_->mapping(cloud);
 }
 
-void GlobalMappingNode::publishMap(const ros::TimerEvent &) {
+void GlobalMappingNode::publishPointCloudMap(const ros::TimerEvent &) {
 
   std::vector<std::string> layers = {
-      grid_map::HeightMap::CoreLayers::ELEVATION,
-      grid_map::HeightMap::CoreLayers::ELEVATION_MAX,
-      grid_map::HeightMap::CoreLayers::ELEVATION_MIN,
-      grid_map::HeightMap::CoreLayers::VARIANCE,
+      grid_map::HeightMap::CoreLayers::ELEVATION,      grid_map::HeightMap::CoreLayers::ELEVATION_MAX,
+      grid_map::HeightMap::CoreLayers::ELEVATION_MIN,  grid_map::HeightMap::CoreLayers::VARIANCE,
       grid_map::HeightMap::CoreLayers::N_MEASUREMENTS,
 
   };
   // Visualize global map
-  sensor_msgs::PointCloud2 msgCloud;
-  toPointCloud2(globalMapper_->getHeightMap(), layers,
-                globalMapper_->getMeasuredGridIndices(), msgCloud);
-  pubGlobalMap_.publish(msgCloud);
+  sensor_msgs::PointCloud2 msg_map_cloud;
+  toPointCloud2(mapper_->getHeightMap(), layers, mapper_->getMeasuredGridIndices(), msg_map_cloud);
+  pub_map_cloud_.publish(msg_map_cloud);
 
   // Visualize map region
-  visualization_msgs::Marker msgRegion;
-  HeightMapMsgs::toMapRegion(globalMapper_->getHeightMap(), msgRegion);
-  pubMapRegion_.publish(msgRegion);
+  visualization_msgs::Marker msg_map_region;
+  HeightMapMsgs::toMapRegion(mapper_->getHeightMap(), msg_map_region);
+  pub_map_region_.publish(msg_map_region);
 }
 
-void GlobalMappingNode::toPointCloud2(
-    const grid_map::HeightMap &map, const std::vector<std::string> &layers,
-    const std::unordered_set<grid_map::Index> &measuredIndices,
-    sensor_msgs::PointCloud2 &cloud) {
+void GlobalMappingNode::toPointCloud2(const grid_map::HeightMap &map, const std::vector<std::string> &layers,
+                                      const std::unordered_set<grid_map::Index> &measuredIndices,
+                                      sensor_msgs::PointCloud2 &cloud) {
 
   // Setup cloud header
   cloud.header.frame_id = map.getFrameId();
@@ -185,19 +188,16 @@ void GlobalMappingNode::toPointCloud2(
   cloud.data.resize(cloud.height * cloud.row_step);
 
   // Setup point field iterators
-  std::unordered_map<std::string, sensor_msgs::PointCloud2Iterator<float>>
-      iterators;
+  std::unordered_map<std::string, sensor_msgs::PointCloud2Iterator<float>> iterators;
   for (const auto &name : fieldNames) {
-    iterators.emplace(name,
-                      sensor_msgs::PointCloud2Iterator<float>(cloud, name));
+    iterators.emplace(name, sensor_msgs::PointCloud2Iterator<float>(cloud, name));
   }
 
   // Fill point cloud data
   size_t validPoints = 0;
   for (const auto &index : measuredIndices) {
     grid_map::Position3 position;
-    if (!map.getPosition3(grid_map::HeightMap::CoreLayers::ELEVATION, index,
-                          position)) {
+    if (!map.getPosition3(grid_map::HeightMap::CoreLayers::ELEVATION, index, position)) {
       continue;
     }
 
@@ -224,49 +224,45 @@ void GlobalMappingNode::toPointCloud2(
   cloud.data.resize(cloud.height * cloud.row_step);
 }
 
-bool GlobalMappingNode::clearMapCallback(std_srvs::Empty::Request &req,
-                                         std_srvs::Empty::Response &res) {
-  globalMapper_->clearMap();
+bool GlobalMappingNode::clearMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
+
+  mapper_->clearMap();
   return true;
 }
 
-bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req,
-                                        std_srvs::Empty::Response &res) {
+bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
   try {
     // Folder check and creation
     std::filesystem::path save_path(mapSavePath_);
-    std::filesystem::path save_dir =
-        save_path.has_extension() ? save_path.parent_path() : save_path;
+    std::filesystem::path save_dir = save_path.has_extension() ? save_path.parent_path() : save_path;
 
     if (!std::filesystem::exists(save_dir)) {
       std::filesystem::create_directories(save_dir);
     }
 
     // Save GridMap to bag
-    mapWriter_.writeToBag(globalMapper_->getHeightMap(), mapSavePath_,
-                          "/height_mapping/globalmap/gridmap");
+    mapWriter_.writeToBag(mapper_->getHeightMap(), mapSavePath_, "/height_mapping/globalmap/gridmap");
 
     // Save GridMap to PCD
-    mapWriter_.writeToPCD(globalMapper_->getHeightMap(),
-                          mapSavePath_.substr(0, mapSavePath_.rfind('.')) +
-                              ".pcd");
+    mapWriter_.writeToPCD(mapper_->getHeightMap(), mapSavePath_.substr(0, mapSavePath_.rfind('.')) + ".pcd");
 
-    std::cout << "\033[1;33m[HeightMapping::GlobalMapping]: Successfully saved "
+    std::cout << "\033[1;33m[height_mapping_ros::GlobalMappingNode]: Successfully saved "
               << "map to " << mapSavePath_ << "\033[0m\n";
 
   } catch (const std::exception &e) {
-    std::cout
-        << "\033[1;31m[HeightMapping::GlobalMapping]: Failed to save map: "
-        << std::string(e.what()) << "\033[0m\n";
+    std::cout << "\033[1;31m[height_mapping_ros::GlobalMappingNode]: Failed to save map: " << std::string(e.what())
+              << "\033[0m\n";
   }
 
   return true;
 }
 
-int main(int argc, char **argv) {
-  ros::init(argc, argv, "global_mapping");
-  GlobalMappingNode node;
+} // namespace height_mapping_ros
 
+int main(int argc, char **argv) {
+
+  ros::init(argc, argv, "global_mapping_node");
+  height_mapping_ros::GlobalMappingNode node;
   ros::spin();
 
   return 0;
