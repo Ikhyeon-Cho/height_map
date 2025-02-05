@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /HeightMap1
+        - /Grid1
       Splitter Ratio: 0.43257442116737366
     Tree Height: 1799
   - Class: rviz/Selection
@@ -26,7 +26,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: RegisteredLaserScan
+    SyncSource: Rasterized Scan
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -49,14 +49,14 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
-      Reference Frame: <Fixed Frame>
+      Plane Cell Count: 400
+      Reference Frame: map
       Value: false
     - Alpha: 1
       Class: rviz/Axes
       Enabled: true
       Length: 0.5
-      Name: Baselink
+      Name: base_link
       Radius: 0.10000000149011612
       Reference Frame: base_link
       Show Trail: false
@@ -73,11 +73,11 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
-      Name: InputLaserScan
+      Name: Input Scan (LiDAR)
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
@@ -88,12 +88,12 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
-    - Alpha: 1
+      Value: true
+    - Alpha: 0.699999988079071
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 1.8241233825683594
-        Min Value: -0.2472304254770279
+        Max Value: 2.629068613052368
+        Min Value: 0.4777677059173584
         Value: true
       Axis: Z
       Channel Name: z
@@ -105,18 +105,46 @@ Visualization Manager:
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
-      Name: RegisteredLaserScan
+      Name: Rasterized Scan
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 2
-      Size (m): 0.03999999910593033
-      Style: Spheres
-      Topic: /height_mapping/mapping/lasercloud
+      Size (Pixels): 5
+      Size (m): 0.10000000149011612
+      Style: Boxes
+      Topic: /height_mapping/local/scan_rasterized
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Alpha: 0.699999988079071
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 4.36995792388916
+        Min Value: 1.999268889427185
+        Value: true
+      Axis: Z
+      Channel Name: z
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: false
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: Rasterized Scan (Global)
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 5
+      Size (m): 0.10000000149011612
+      Style: Boxes
+      Topic: /height_mapping/local/scan_rasterized
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Class: grid_map_rviz_plugin/GridMap
@@ -132,23 +160,59 @@ Visualization Manager:
       Max Intensity: 10
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: HeightMap
+      Name: Heightmap
       Show Grid Lines: true
-      Topic: /height_mapping/map/gridmap
+      Topic: /height_mapping/local/heightmap
       Unreliable: false
       Use Rainbow: true
       Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: elevation
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: false
+      Invert Rainbow: true
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: Heightmap (Global)
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.07999999821186066
+      Style: Spheres
+      Topic: /height_mapping/global/map_cloud
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /height_mapping/map/region
-      Name: HeightMapRegion
+      Marker Topic: /height_mapping/local/map_region
+      Name: Map region
       Namespaces:
         map_region: true
       Queue Size: 100
       Value: true
+    - Class: rviz/Marker
+      Enabled: false
+      Marker Topic: /height_mapping/global/map_region
+      Name: Map region (Global)
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
   Enabled: true
   Global Options:
-    Background Color: 48; 48; 48
+    Background Color: 0; 0; 0
     Default Light: true
     Fixed Frame: map
     Frame Rate: 30
@@ -173,8 +237,8 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 31.713895797729492
+      Class: rviz/ThirdPersonFollower
+      Distance: 22.634550094604492
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -182,17 +246,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0
-        Y: 0
+        X: 7.788363456726074
+        Y: -4.968705654144287
         Z: 0
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5647976994514465
+      Pitch: 0.6853983402252197
       Target Frame: base_link
-      Yaw: 3.5735905170440674
+      Yaw: 5.643583297729492
     Saved: ~
 Window Geometry:
   Displays:

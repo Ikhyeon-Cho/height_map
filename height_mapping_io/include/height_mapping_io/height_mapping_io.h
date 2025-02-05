@@ -1,6 +1,4 @@
-#pragma once
-
-#include "height_mapping_io/HeightMapReader.h"
-#include "height_mapping_io/HeightMapWriter.h"
+#include "height_mapping_io/pcd_conversion.h"
+#include "height_mapping_io/rosbag_conversion.h"
 #include "height_mapping_io/KITTIScanReader.h"
 #include "height_mapping_io/KITTIScanWriter.h"

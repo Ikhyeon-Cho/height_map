@@ -13,13 +13,10 @@
   </group>
 
   <!-- Global mapping node -->
-  <group if="$(arg global_mapping)">
-    <node pkg="height_mapping" type="global_mapping_node" name="global_mapping" output="screen"/>
-  </group>
-
-  <!-- Use grid_map_visualization package for map visualization -->
-  <node pkg="grid_map_visualization" type="grid_map_visualization" name="map_visualization" output="log">
-    <rosparam file="$(find height_mapping)/config/visualization.yaml" />
+  <node pkg="height_mapping" type="global_mapping_node" name="global_mapping" output="screen">
+    <rosparam file="$(find height_mapping)/config/global_mapping_params.yaml" command="load" subst_value="true" />
+    <param name="node/debug_mode" value="$(arg debug_mode)" />
   </node>
+
 
 </launch>

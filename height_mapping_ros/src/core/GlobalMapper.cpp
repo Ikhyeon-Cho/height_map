@@ -9,85 +9,57 @@
 
 #include "height_mapping_ros/core/GlobalMapper.h"
 
-GlobalMapper::GlobalMapper(const Config &cfg) : cfg_(cfg) {
+GlobalMapper::GlobalMapper(const Config &cfg) : HeightMapper(cfg) {
 
-  initMap();
-  initHeightEstimator();
-
-  measured_indices_.reserve(map_.getSize().prod());
+  const auto &map = getHeightMap();
+  measured_indices_.reserve(map.getSize().prod());
 }
 
-void GlobalMapper::initMap() {
+template <typename PointT>
+typename boost::shared_ptr<pcl::PointCloud<PointT>>
+GlobalMapper::heightMapping(const typename boost::shared_ptr<pcl::PointCloud<PointT>> &cloud) {
 
-  // Check parameter validity
-  if (cfg_.grid_resolution <= 0) {
-    throw std::invalid_argument("[GlobalMapper::initMap]: Grid resolution must be positive");
-  }
-  if (cfg_.map_length_x <= 0 || cfg_.map_length_y <= 0) {
-    throw std::invalid_argument("[GlobalMapper::initMap]: Map dimensions must be positive");
-  }
+  auto cloud_rasterized = HeightMapper::heightMapping<PointT>(cloud);
 
-  // Initialize map geometry
-  map_.setFrameId(cfg_.frame_id);
-  map_.setPosition(grid_map::Position(0.0, 0.0));
-  map_.setGeometry(grid_map::Length(cfg_.map_length_x, cfg_.map_length_y), cfg_.grid_resolution);
-}
+  // Save measured indices for efficiency
+  recordMeasuredCells(getHeightMap(), *cloud_rasterized);
 
-void GlobalMapper::initHeightEstimator() {
-
-  if (cfg_.estimator_type == "KalmanFilter") {
-    height_estimator_ = std::make_unique<height_mapping::KalmanEstimator>();
-  } else if (cfg_.estimator_type == "MovingAverage") {
-    height_estimator_ = std::make_unique<height_mapping::MovingAverageEstimator>();
-  } else if (cfg_.estimator_type == "StatMean") {
-    height_estimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
-  } else {
-    height_estimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
-  }
-}
-
-template <typename PointT> void GlobalMapper::mapping(const pcl::PointCloud<PointT> &cloud) {
-
-  recordMeasuredCells(map_, cloud);
-
-  height_estimator_->estimate(map_, cloud);
+  return cloud_rasterized;
 }
 
 // Save measured indices for efficiency
 template <typename PointT>
 void GlobalMapper::recordMeasuredCells(const grid_map::HeightMap &map, const pcl::PointCloud<PointT> &cloud) {
 
-  grid_map::Index cell_index;
-  grid_map::Position cell_position;
+  grid_map::Index measured_cell_index;
+  grid_map::Position measured_cell_position;
 
   for (const auto &point : cloud.points) {
-    cell_position = grid_map::Position(point.x, point.y);
+    measured_cell_position.x() = point.x;
+    measured_cell_position.y() = point.y;
 
     // Skip if the point is out of the map
-    if (!map.getIndex(cell_position, cell_index))
-      continue;
-    if (!map.isEmptyAt(cell_index))
+    if (!map.getIndex(measured_cell_position, measured_cell_index))
       continue;
 
-    measured_indices_.insert(cell_index);
+    if (map.isEmptyAt(measured_cell_index))
+      continue;
+
+    measured_indices_.insert(measured_cell_index);
   }
 }
-
-void GlobalMapper::raycasting(const Eigen::Vector3f &sensorOrigin, const pcl::PointCloud<Laser> &cloud) {
-  raycaster_.correctHeight(map_, cloud, sensorOrigin);
-}
-
-void GlobalMapper::clearMap() { map_.clearAll(); }
 
 //////////////////////////////////////////////////
 // Explicit instantiation of template functions //
 //////////////////////////////////////////////////
 // Laser
-template void GlobalMapper::mapping<Laser>(const pcl::PointCloud<Laser> &cloud);
+template typename boost::shared_ptr<pcl::PointCloud<Laser>>
+GlobalMapper::heightMapping<Laser>(const typename boost::shared_ptr<pcl::PointCloud<Laser>> &cloud);
 template void GlobalMapper::recordMeasuredCells(const grid_map::HeightMap &map,
                                                 const pcl::PointCloud<Laser> &cloud);
 
 // Color
-template void GlobalMapper::mapping<Color>(const pcl::PointCloud<Color> &cloud);
+template typename boost::shared_ptr<pcl::PointCloud<Color>>
+GlobalMapper::heightMapping<Color>(const typename boost::shared_ptr<pcl::PointCloud<Color>> &cloud);
 template void GlobalMapper::recordMeasuredCells(const grid_map::HeightMap &map,
                                                 const pcl::PointCloud<Color> &cloud);

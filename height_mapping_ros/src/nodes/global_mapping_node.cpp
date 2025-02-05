@@ -9,7 +9,7 @@
 
 #include "height_mapping_ros/nodes/global_mapping_node.h"
 #include "height_mapping_ros/utils/config_loader.h"
-#include <height_mapping_msgs/HeightMapMsgs.h>
+#include "height_mapping_ros/utils/pc_utils.h"
 
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <grid_map_cv/GridMapCvConverter.hpp>
@@ -60,13 +60,13 @@ void GlobalMappingNode::loadConfig(const ros::NodeHandle &nh) {
 void GlobalMappingNode::initializeTimers() {
 
   auto map_publish_duration = ros::Duration(1.0 / cfg_.map_publish_rate);
+
   map_publish_timer_ =
       nh_.createTimer(map_publish_duration, &GlobalMappingNode::publishPointCloudMap, this, false, false);
 }
 
 void GlobalMappingNode::initializePubSubs() {
 
-  // Use the preprocessed cloud in height mapping node
   // Subscribers
   sub_lidarscan_ = nh_.subscribe(cfg_.lidarcloud_topic, 1, &GlobalMappingNode::lidarScanCallback, this);
   sub_rgbdscan_ = nh_.subscribe(cfg_.rgbdcloud_topic, 1, &GlobalMappingNode::rgbdScanCallback, this);
@@ -74,6 +74,7 @@ void GlobalMappingNode::initializePubSubs() {
   // Publishers
   pub_map_cloud_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/global/map_cloud", 1);
   pub_map_region_ = nh_.advertise<visualization_msgs::Marker>("/height_mapping/global/map_region", 1);
+  pub_scan_rasterized_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/global/scan_rasterized", 1);
 }
 
 void GlobalMappingNode::initializeServices() {
@@ -94,18 +95,30 @@ void GlobalMappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg
               << "Use LiDAR scans for global mapping... \033[0m\n";
   }
 
-  pcl::PointCloud<Laser> pointcloud;
-  pcl::moveFromROSMsg(*msg, pointcloud);
-  mapper_->mapping(pointcloud);
+  // 1. Get transform matrix using tf tree
+  geometry_msgs::TransformStamped sensor2base, base2map;
+  if (!tf_.lookupTransform(frameID.base_link, frameID.sensor, sensor2base) ||
+      !tf_.lookupTransform(frameID.map, frameID.base_link, base2map))
+    return;
 
-  // TODO: Raycasting needs sensor origin
-  // geometry_msgs::TransformStamped t;
-  // if (!tf_.lookupTransform(frameID.map, frameID.sensor, t))
-  //   return;
+  // 2. Convert ROS msg to PCL data
+  auto scan_raw = boost::make_shared<pcl::PointCloud<Laser>>();
+  pcl::moveFromROSMsg(*msg, *scan_raw);
 
-  // Eigen::Vector3f laserPosition3D(t.transform.translation.x, t.transform.translation.y,
-  //                                 t.transform.translation.z);
-  // mapper_->raycasting(laserPosition3D, pointcloud);
+  auto scan_processed = processLidarScan(scan_raw, sensor2base, base2map);
+  if (!scan_processed)
+    return;
+
+  auto scan_rasterized = mapper_->heightMapping(scan_processed);
+
+  auto sensor2map = tf_.combineTransforms(sensor2base, base2map);
+  Eigen::Vector3f sensorOrigin3D(sensor2map.transform.translation.x, sensor2map.transform.translation.y,
+                                 sensor2map.transform.translation.z);
+  mapper_->raycasting(sensorOrigin3D, scan_processed);
+
+  sensor_msgs::PointCloud2 msg_cloud;
+  pcl::toROSMsg(*scan_rasterized, msg_cloud);
+  pub_scan_rasterized_.publish(msg_cloud);
 }
 
 void GlobalMappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
@@ -118,9 +131,75 @@ void GlobalMappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg)
               << "Start global mapping... \033[0m\n";
   }
 
-  pcl::PointCloud<Color> cloud;
-  pcl::moveFromROSMsg(*msg, cloud);
-  mapper_->mapping(cloud);
+  // 1. Get transform matrix using tf tree
+  geometry_msgs::TransformStamped sensor2base, base2map;
+  if (!tf_.lookupTransform(frameID.base_link, frameID.sensor, sensor2base) ||
+      !tf_.lookupTransform(frameID.map, frameID.base_link, base2map))
+    return;
+
+  // 2. Convert ROS msg to PCL data
+  auto scan_raw = boost::make_shared<pcl::PointCloud<Color>>();
+  pcl::moveFromROSMsg(*msg, *scan_raw);
+
+  auto scan_processed = processRGBDCloud(scan_raw, sensor2base, base2map);
+  if (!scan_processed)
+    return;
+
+  auto scan_rasterized = mapper_->heightMapping(scan_processed);
+
+  auto sensor2map = tf_.combineTransforms(sensor2base, base2map);
+  Eigen::Vector3f sensorOrigin3D(sensor2map.transform.translation.x, sensor2map.transform.translation.y,
+                                 sensor2map.transform.translation.z);
+  mapper_->raycasting(sensorOrigin3D, scan_processed);
+
+  sensor_msgs::PointCloud2 msg_cloud;
+  pcl::toROSMsg(*scan_rasterized, msg_cloud);
+  pub_scan_rasterized_.publish(msg_cloud);
+}
+
+pcl::PointCloud<Laser>::Ptr
+GlobalMappingNode::processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
+                                    const geometry_msgs::TransformStamped &lidar2base,
+                                    const geometry_msgs::TransformStamped &base2map) {
+  // 1. Filter local pointcloud
+  auto cloud_base = pc_utils::applyTransform<Laser>(cloud, lidar2base);
+  auto cloud_processed = boost::make_shared<pcl::PointCloud<Laser>>();
+  mapper_->fastHeightFilter(cloud_base, cloud_processed);
+  cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "x", -10.0, 10.0);
+  cloud_processed = pc_utils::passThrough<Laser>(cloud_processed, "y", -10.0, 10.0);
+
+  // (Optional) Remove remoter points
+  if (cfg_.remove_backward_points)
+    cloud_processed = pc_utils::filterAngle<Laser>(cloud_processed, -135.0, 135.0);
+
+  // 2. Transform pointcloud to map frame
+  cloud_processed = pc_utils::applyTransform<Laser>(cloud_processed, base2map);
+
+  if (cloud_processed->empty())
+    return nullptr;
+  return cloud_processed;
+}
+
+pcl::PointCloud<Color>::Ptr
+GlobalMappingNode::processRGBDCloud(const pcl::PointCloud<Color>::Ptr &cloud,
+                                    const geometry_msgs::TransformStamped &camera2base,
+                                    const geometry_msgs::TransformStamped &base2map) {
+
+  auto cloud_base = pc_utils::applyTransform<Color>(cloud, camera2base);
+  auto cloud_processed = boost::make_shared<pcl::PointCloud<Color>>();
+  mapper_->fastHeightFilter(cloud_base, cloud_processed);
+  cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "x", -10.0, 10.0);
+  cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "y", -10.0, 10.0);
+
+  // (Optional) Remove remoter points
+  if (cfg_.remove_backward_points)
+    cloud_processed = pc_utils::filterAngle<Color>(cloud_processed, -135.0, 135.0);
+
+  cloud_processed = pc_utils::applyTransform<Color>(cloud_processed, base2map);
+
+  if (cloud_processed->empty())
+    return nullptr;
+  return cloud_processed;
 }
 
 void GlobalMappingNode::publishPointCloudMap(const ros::TimerEvent &) {
@@ -138,7 +217,7 @@ void GlobalMappingNode::publishPointCloudMap(const ros::TimerEvent &) {
 
   // Visualize map region
   visualization_msgs::Marker msg_map_region;
-  HeightMapMsgs::toMapRegion(mapper_->getHeightMap(), msg_map_region);
+  toMapRegion(mapper_->getHeightMap(), msg_map_region);
   pub_map_region_.publish(msg_map_region);
 }
 
@@ -225,6 +304,45 @@ void GlobalMappingNode::toPointCloud2(const grid_map::HeightMap &map, const std:
   cloud.data.resize(cloud.height * cloud.row_step);
 }
 
+void GlobalMappingNode::toMapRegion(const grid_map::HeightMap &map, visualization_msgs::Marker &marker) {
+
+  marker.ns = "height_map";
+  marker.lifetime = ros::Duration();
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.type = visualization_msgs::Marker::LINE_STRIP;
+
+  marker.scale.x = 0.1;
+  marker.color.a = 1.0;
+  marker.color.r = 0.0;
+  marker.color.g = 1.0;
+  marker.color.b = 0.0;
+
+  marker.header.frame_id = map.getFrameId();
+  marker.header.stamp = ros::Time::now();
+
+  float length_x_half = (map.getLength().x() - 0.5 * map.getResolution()) / 2.0;
+  float length_y_half = (map.getLength().y() - 0.5 * map.getResolution()) / 2.0;
+
+  marker.points.resize(5);
+  marker.points[0].x = map.getPosition().x() + length_x_half;
+  marker.points[0].y = map.getPosition().y() + length_x_half;
+  marker.points[0].z = 0;
+
+  marker.points[1].x = map.getPosition().x() + length_x_half;
+  marker.points[1].y = map.getPosition().y() - length_x_half;
+  marker.points[1].z = 0;
+
+  marker.points[2].x = map.getPosition().x() - length_x_half;
+  marker.points[2].y = map.getPosition().y() - length_x_half;
+  marker.points[2].z = 0;
+
+  marker.points[3].x = map.getPosition().x() - length_x_half;
+  marker.points[3].y = map.getPosition().y() + length_x_half;
+  marker.points[3].z = 0;
+
+  marker.points[4] = marker.points[0];
+}
+
 bool GlobalMappingNode::clearMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
 
   mapper_->clearMap();
@@ -234,7 +352,7 @@ bool GlobalMappingNode::clearMapCallback(std_srvs::Empty::Request &req, std_srvs
 bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
   try {
     // Folder check and creation
-    std::filesystem::path save_path(mapSavePath_);
+    std::filesystem::path save_path(cfg_.map_save_dir);
     std::filesystem::path save_dir = save_path.has_extension() ? save_path.parent_path() : save_path;
 
     if (!std::filesystem::exists(save_dir)) {
@@ -242,13 +360,14 @@ bool GlobalMappingNode::saveMapCallback(std_srvs::Empty::Request &req, std_srvs:
     }
 
     // Save GridMap to bag
-    mapWriter_.writeToBag(mapper_->getHeightMap(), mapSavePath_, "/height_mapping/globalmap/gridmap");
+    mapWriter_.writeToBag(mapper_->getHeightMap(), cfg_.map_save_dir, "/height_mapping/globalmap/gridmap");
 
     // Save GridMap to PCD
-    mapWriter_.writeToPCD(mapper_->getHeightMap(), mapSavePath_.substr(0, mapSavePath_.rfind('.')) + ".pcd");
+    mapWriter_.writeToPCD(mapper_->getHeightMap(),
+                          cfg_.map_save_dir.substr(0, cfg_.map_save_dir.rfind('.')) + ".pcd");
 
     std::cout << "\033[1;33m[height_mapping_ros::GlobalMappingNode]: Successfully saved "
-              << "map to " << mapSavePath_ << "\033[0m\n";
+              << "map to " << cfg_.map_save_dir << "\033[0m\n";
 
   } catch (const std::exception &e) {
     std::cout << "\033[1;31m[height_mapping_ros::GlobalMappingNode]: Failed to save map: "

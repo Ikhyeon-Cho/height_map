@@ -22,7 +22,7 @@ public:
     double grid_resolution;
     double min_height;
     double max_height;
-  };
+  } cfg;
 
   HeightMapper(const Config &cfg);
 
@@ -97,7 +97,6 @@ private:
 
   // Members
   grid_map::HeightMap map_;
-  Config cfg_;
 
   // Height mapping objects
   height_mapping::FastHeightFilter heightFilter_;

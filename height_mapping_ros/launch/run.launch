@@ -1,5 +1,5 @@
 <!-- 
-  Run mapping.launch with Rviz visualization
+  Run mapping.launch (+ global_mapping.launch) with Rviz visualization
   - Launches appropriate Rviz configuration based on mapping mode
 
   Parameters:
@@ -7,20 +7,22 @@
   - Use debug_mode:=true to publish debug information
 -->
 <launch>
-  <arg name="use_sensor_processor" default="false" />
   <arg name="global_mapping" default="false" />
   <arg name="debug_mode" default="false" />
 
   <!-- Height mapping-->
-  <include file="$(find height_mapping)/launch/mapping.launch" >
-    <arg name="use_sensor_processor" value="$(arg use_sensor_processor)" />
-    <arg name="global_mapping" value="$(arg global_mapping)" />
+  <include file="$(find height_mapping)/launch/mapping.launch">
     <arg name="debug_mode" value="$(arg debug_mode)" />
   </include>
 
+  <!-- Global mapping -->
+  <group if="$(arg global_mapping)">
+    <include file="$(find height_mapping)/launch/global_mapping.launch">
+      <arg name="debug_mode" value="$(arg debug_mode)" />
+    </include>
+  </group>
+
   <!-- Rviz -->
-  <include file="$(find height_mapping)/launch/include/rviz.launch.xml" >
-    <arg name="global_mapping" value="$(arg global_mapping)" />
-  </include>
+  <include file="$(find height_mapping)/launch/include/rviz.launch.xml" />
 
 </launch>

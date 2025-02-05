@@ -7,28 +7,35 @@
  *       Email: tre0430@korea.ac.kr
  */
 
-#pragma once
-
+#include <ros/ros.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/synchronizer.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
 
-#include <height_mapping_core/height_mapping_core.h>
-#include <height_mapping_utils/height_mapping_utils.h>
+#include <height_mapping_core/height_map/CloudTypes.h>
+#include "height_mapping_ros/utils/TransformHandler.h"
+
+namespace height_mapping_ros {
 
 class SensorProcessorNode {
 public:
+  struct Config {
+    std::vector<std::string> inputcloud_topics;
+    std::string output_cloud_topic;
+    double cloud_publish_rate;
+    double downsampling_resolution;
+    double min_range_threshold;
+    double max_range_threshold;
+  } cfg;
+
   SensorProcessorNode();
   ~SensorProcessorNode() = default;
+  void loadConfig(const ros::NodeHandle &nh);
 
 private:
-  void getNodeParameters();
-  void getFrameIDs();
-  void setupROSInterface();
+  void initializePubSubs();
   void getProcessingParameters();
 
   // Synchronized callbacks
@@ -39,44 +46,31 @@ private:
                      const sensor_msgs::PointCloud2ConstPtr &msg3);
 
   void transformToBaselink(const pcl::PointCloud<Color>::Ptr &cloud,
-                           pcl::PointCloud<Color>::Ptr &transformedCloud,
-                           const std::string &sensorFrame);
+                           pcl::PointCloud<Color>::Ptr &transformedCloud, const std::string &sensorFrame);
 
-  // ROS members
   ros::NodeHandle nh_;
-  ros::NodeHandle nhPriv_{"~"};
-  ros::NodeHandle nhFrameID_{nh_, "frame_id"};
-  ros::NodeHandle nhSensorProcessor_{nh_, "sensor_processor"};
-
-  // Frame IDs
-  std::string baselinkFrame_;
 
   // Message filters types
   typedef message_filters::Subscriber<sensor_msgs::PointCloud2> CloudSubscriber;
-  typedef message_filters::sync_policies::ApproximateTime<
-      sensor_msgs::PointCloud2, sensor_msgs::PointCloud2>
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2>
       SyncPolicy2;
-  typedef message_filters::sync_policies::ApproximateTime<
-      sensor_msgs::PointCloud2, sensor_msgs::PointCloud2,
-      sensor_msgs::PointCloud2>
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2,
+                                                          sensor_msgs::PointCloud2>
       SyncPolicy3;
   typedef message_filters::Synchronizer<SyncPolicy2> Synchronizer2;
   typedef message_filters::Synchronizer<SyncPolicy3> Synchronizer3;
 
   // Subscribers and synchronizers
-  std::vector<std::shared_ptr<CloudSubscriber>> cloudSubs_;
+  std::vector<std::shared_ptr<CloudSubscriber>> sub_clouds_;
   std::shared_ptr<Synchronizer2> sync2_;
   std::shared_ptr<Synchronizer3> sync3_;
 
   // Publisher
-  ros::Publisher pubProcessedCloud_;
-
-  // Timer
-  ros::Timer cloudPublishTimer_;
+  ros::Publisher pub_processed_cloud_;
 
   // Core implementation
-  // std::unique_ptr<SensorProcessor> sensorProcessor_;
-  utils::TransformHandler tf_;
+  TransformHandler tf_;
+  TransformHandler::FrameID frameID;
 
   // pcl pointers
   pcl::PointCloud<Color>::Ptr cloud1_{new pcl::PointCloud<Color>};
@@ -94,15 +88,5 @@ private:
   pcl::PointCloud<Color>::Ptr transformed1_{new pcl::PointCloud<Color>};
   pcl::PointCloud<Color>::Ptr transformed2_{new pcl::PointCloud<Color>};
   pcl::PointCloud<Color>::Ptr transformed3_{new pcl::PointCloud<Color>};
-
-  // Parameters
-  std::vector<std::string> inputTopics_;
-  std::string outputCloudTopic_;
-
-  double cloudPublishRate_;
-  double downsamplingResolution_;
-  double minRangeThreshold_;
-  double maxRangeThreshold_;
-
-  // Declare point cloud members
 };
+} // namespace height_mapping_ros

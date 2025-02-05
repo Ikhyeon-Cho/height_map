@@ -25,7 +25,10 @@ public:
               typename pcl::PointCloud<PointT>::Ptr &cloudFiltered);
 
 private:
-  double minZ_, maxZ_;
+  // set min as infinite minus and max as infinite plus
+  static constexpr double INF_MIN = -std::numeric_limits<double>::infinity();
+  static constexpr double INF_MAX = std::numeric_limits<double>::infinity();
+  double minZ_{INF_MIN}, maxZ_{INF_MAX};
 };
 
 } // namespace height_mapping

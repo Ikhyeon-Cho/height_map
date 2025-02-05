@@ -1,7 +1,7 @@
 node:
   lidar_topic: "/velodyne/points"
   rgbd_topic: "/height_mapping/sensor_processor/points"
-  robot_pose_update_rate: 15.0
+  map_position_update_rate: 15.0
   map_publish_rate: 15.0
   remove_backward_points: true
   debug_mode: false

@@ -1,21 +1,9 @@
 <!-- 
   Launch file for rviz visualization
-  
-  Parameters:
-  - global_mapping: Set to true to use global mapping configuration (default: false)
-    
-  Usage:
-  - Standard mapping: roslaunch height_mapping rviz.launch.xml
-  - Global mapping: roslaunch height_mapping rviz.launch.xml global_mapping:=true
 -->
 <launch>
-  <arg name="global_mapping" default="false" />
-  
-  <arg name="rviz_config" value="global_mapping.rviz" if="$(arg global_mapping)"/>
-  <arg name="rviz_config" value="height_mapping.rviz" unless="$(arg global_mapping)"/>
-  
   <group ns="height_mapping">
     <node pkg="rviz" type="rviz" name="$(anon rviz)" output="log"
-          args="-d $(find height_mapping)/launch/rviz/$(arg rviz_config)"/>
+      args="-d $(find height_mapping)/launch/rviz/height_mapping.rviz" />
   </group>
 </launch>

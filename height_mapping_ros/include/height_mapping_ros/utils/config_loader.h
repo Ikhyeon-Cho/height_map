@@ -35,6 +35,8 @@ static GlobalMapper::Config loadConfig(const ros::NodeHandle &nh) {
   nh.param<double>("map_length_x", cfg.map_length_x, 400.0);
   nh.param<double>("map_length_y", cfg.map_length_y, 400.0);
   nh.param<double>("grid_resolution", cfg.grid_resolution, 0.1);
+  nh.param<double>("min_height_threshold", cfg.min_height, -0.2);
+  nh.param<double>("max_height_threshold", cfg.max_height, 1.5);
 
   nh.param<std::string>("map_save_dir", cfg.map_save_dir,
                         std::string("/home/") + std::getenv("USER") + "/Downloads");

@@ -43,7 +43,7 @@ void MappingNode::loadConfig(const ros::NodeHandle &nh) {
   cfg_.rgbdcloud_topic = nh.param<std::string>("rgbd_topic", "/camera/pointcloud/points");
 
   // Timer parameters
-  cfg_.robot_pose_update_rate = nh.param<double>("robot_pose_update_rate", 15.0);
+  cfg_.map_position_update_rate = nh.param<double>("map_position_update_rate", 15.0);
   cfg_.map_publish_rate = nh.param<double>("map_publish_rate", 10.0);
 
   // Options
@@ -53,11 +53,11 @@ void MappingNode::loadConfig(const ros::NodeHandle &nh) {
 
 void MappingNode::initializeTimers() {
 
-  auto robot_pose_update_duration = ros::Duration(1.0 / cfg_.robot_pose_update_rate);
+  auto map_position_update_duration = ros::Duration(1.0 / cfg_.map_position_update_rate);
   auto heightmap_publish_duration = ros::Duration(1.0 / cfg_.map_publish_rate);
 
-  pose_update_timer_ =
-      nh_.createTimer(robot_pose_update_duration, &MappingNode::updateMapOrigin, this, false, false);
+  map_position_update_timer_ =
+      nh_.createTimer(map_position_update_duration, &MappingNode::updateMapOrigin, this, false, false);
   map_publish_timer_ =
       nh_.createTimer(heightmap_publish_duration, &MappingNode::publishHeightMap, this, false, false);
 }
@@ -70,11 +70,11 @@ void MappingNode::initializePubSubs() {
 
   // Publishers
   pub_heightmap_ = nh_.advertise<grid_map_msgs::GridMap>("/height_mapping/local/heightmap", 1);
-  pub_scan_processed_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/scan_processed", 1);
+  pub_scan_rasterized_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/scan_rasterized", 1);
 
   if (cfg_.debug_mode) {
-    pub_debug_lidar_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/lidarcloud", 1);
-    pub_debug_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("debug/rgbdcloud", 1);
+    pub_debug_lidar_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/debug_lidar", 1);
+    pub_debug_rgbd_ = nh_.advertise<sensor_msgs::PointCloud2>("/height_mapping/local/debug_rgbd", 1);
   }
 }
 
@@ -84,7 +84,7 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   if (!lidarscan_received_) {
     lidarscan_received_ = true;
     frameID.sensor = msg->header.frame_id;
-    pose_update_timer_.start();
+    map_position_update_timer_.start();
     map_publish_timer_.start();
     std::cout << "\033[1;32m[height_mapping_ros::MappingNode]: Pointcloud Received! "
               << "Use LiDAR scans for height mapping... \033[0m\n";
@@ -117,7 +117,7 @@ void MappingNode::lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   // 6. Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 msg_cloud;
   pcl::toROSMsg(*scan_rasterized, msg_cloud);
-  pub_scan_processed_.publish(msg_cloud);
+  pub_scan_rasterized_.publish(msg_cloud);
 
   // Debug: publish pointcloud that you want to see
   if (cfg_.debug_mode) {
@@ -132,7 +132,7 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   // First time receiving RGB-D cloud -> start pose update timer
   if (!rgbdscan_received_) {
     rgbdscan_received_ = true;
-    pose_update_timer_.start();
+    map_position_update_timer_.start();
     map_publish_timer_.start();
     std::cout << "\033[1;33m[height_mapping_ros::MappingNode]: Colored cloud Received! "
               << "Use RGB-D sensors for height mapping... \033[0m\n";
@@ -150,22 +150,22 @@ void MappingNode::rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg) {
   pcl::moveFromROSMsg(*msg, *scan_raw);
 
   // Preprocess pointcloud
-  auto cloud_processed = processRGBDCloud(scan_raw, camera2base, base2map);
-  if (!cloud_processed)
+  auto scan_processed = processRGBDCloud(scan_raw, camera2base, base2map);
+  if (!scan_processed)
     return;
 
   // Mapping
-  auto cloud_mapped = mapper_->heightMapping<Color>(cloud_processed);
+  auto cloud_mapped = mapper_->heightMapping<Color>(scan_processed);
 
   // Publish pointcloud used for mapping
   sensor_msgs::PointCloud2 cloudMsg;
   pcl::toROSMsg(*cloud_mapped, cloudMsg);
-  pub_scan_processed_.publish(cloudMsg);
+  pub_scan_rasterized_.publish(cloudMsg);
 
   // Debug: publish pointcloud that you want to see
   if (cfg_.debug_mode) {
     sensor_msgs::PointCloud2 debugMsg;
-    pcl::toROSMsg(*cloud_processed, debugMsg);
+    pcl::toROSMsg(*scan_processed, debugMsg);
     pub_debug_rgbd_.publish(debugMsg);
   }
 }
@@ -203,11 +203,12 @@ pcl::PointCloud<Color>::Ptr MappingNode::processRGBDCloud(const pcl::PointCloud<
   auto range = mapper_->getHeightMap().getLength() / 2.0; // mapping range
   cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "x", -range.x(), range.x());
   cloud_processed = pc_utils::passThrough<Color>(cloud_processed, "y", -range.y(), range.y());
-  cloud_processed = pc_utils::applyTransform<Color>(cloud_processed, base2map);
 
   // (Optional) Remove remoter points
   if (cfg_.remove_backward_points)
     cloud_processed = pc_utils::filterAngle<Color>(cloud_processed, -135.0, 135.0);
+
+  cloud_processed = pc_utils::applyTransform<Color>(cloud_processed, base2map);
 
   if (cloud_processed->empty())
     return nullptr;

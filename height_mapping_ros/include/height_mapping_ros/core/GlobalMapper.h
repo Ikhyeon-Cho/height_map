@@ -9,10 +9,10 @@
 
 #pragma once
 
-#include <height_mapping_core/height_mapping_core.h>
+#include "height_mapping_ros/core/HeightMapper.h"
 #include <unordered_set>
-// #include <height_mapping_msgs/HeightMapConverter.h>
 
+// this is for the use of unordered_set with grid_map::Index
 namespace std {
 template <> struct hash<grid_map::Index> {
   std::size_t operator()(const grid_map::Index &index) const {
@@ -29,39 +29,23 @@ template <> struct equal_to<grid_map::Index> {
 };
 } // namespace std
 
-class GlobalMapper {
+class GlobalMapper : public HeightMapper {
 public:
-  struct Config {
-    std::string estimator_type;
-    std::string frame_id;
+  struct Config : public HeightMapper::Config {
     std::string map_save_dir;
-    double map_length_x;
-    double map_length_y;
-    double grid_resolution;
-  };
+  } cfg;
 
   GlobalMapper(const Config &cfg);
 
-  template <typename PointT> void mapping(const pcl::PointCloud<PointT> &cloud);
-
   template <typename PointT>
-  void recordMeasuredCells(const grid_map::HeightMap &map, const pcl::PointCloud<PointT> &cloud);
-
-  void raycasting(const Eigen::Vector3f &sensorOrigin, const pcl::PointCloud<Laser> &cloud);
-
-  const grid_map::HeightMap &getHeightMap() const { return map_; }
-  void clearMap();
+  typename boost::shared_ptr<pcl::PointCloud<PointT>>
+  heightMapping(const typename boost::shared_ptr<pcl::PointCloud<PointT>> &cloud);
 
   const std::unordered_set<grid_map::Index> &getMeasuredGridIndices() const { return measured_indices_; }
 
 private:
-  void initMap();
-  void initHeightEstimator();
-
-  grid_map::HeightMap map_;
-  Config cfg_;
+  template <typename PointT>
+  void recordMeasuredCells(const grid_map::HeightMap &map, const pcl::PointCloud<PointT> &cloud);
 
   std::unordered_set<grid_map::Index> measured_indices_;
-  height_mapping::HeightEstimatorBase::Ptr height_estimator_;
-  height_mapping::HeightMapRaycaster raycaster_;
 };

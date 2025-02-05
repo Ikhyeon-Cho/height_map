@@ -9,7 +9,7 @@
 
 #include "height_mapping_ros/core/HeightMapper.h"
 
-HeightMapper::HeightMapper(const Config &cfg) : cfg_{cfg}, heightFilter_{cfg.min_height, cfg.max_height} {
+HeightMapper::HeightMapper(const Config &cfg) : cfg{cfg}, heightFilter_{cfg.min_height, cfg.max_height} {
 
   initMap();
   initHeightEstimator();
@@ -18,16 +18,16 @@ HeightMapper::HeightMapper(const Config &cfg) : cfg_{cfg}, heightFilter_{cfg.min
 void HeightMapper::initMap() {
 
   // Check parameter validity
-  if (cfg_.grid_resolution <= 0) {
+  if (cfg.grid_resolution <= 0) {
     throw std::invalid_argument("[height_mapping::HeightMapper]: Grid resolution must be positive");
   }
-  if (cfg_.map_length_x <= 0 || cfg_.map_length_y <= 0) {
+  if (cfg.map_length_x <= 0 || cfg.map_length_y <= 0) {
     throw std::invalid_argument("[height_mapping::HeightMapper]: Map dimensions must be positive");
   }
 
   // Initialize map geometry
-  map_.setFrameId(cfg_.frame_id);
-  map_.setGeometry(grid_map::Length(cfg_.map_length_x, cfg_.map_length_y), cfg_.grid_resolution);
+  map_.setFrameId(cfg.frame_id);
+  map_.setGeometry(grid_map::Length(cfg.map_length_x, cfg.map_length_y), cfg.grid_resolution);
 }
 
 void HeightMapper::initHeightEstimator() {
@@ -37,19 +37,19 @@ void HeightMapper::initHeightEstimator() {
   // - Moving Average
   // - StatMean (by default)
 
-  if (cfg_.estimator_type == "KalmanFilter") {
+  if (cfg.estimator_type == "KalmanFilter") {
     height_estimator_ = std::make_unique<height_mapping::KalmanEstimator>();
 
     std::cout << "\033[1;33m[height_mapping::HeightMapper]: Height estimator "
                  "type --> KalmanFilter \033[0m\n";
 
-  } else if (cfg_.estimator_type == "MovingAverage") {
+  } else if (cfg.estimator_type == "MovingAverage") {
     height_estimator_ = std::make_unique<height_mapping::MovingAverageEstimator>();
 
     std::cout << "\033[1;33m[height_mapping::HeightMapper]: Height estimator "
                  "type --> MovingAverage \033[0m\n";
 
-  } else if (cfg_.estimator_type == "StatMean") {
+  } else if (cfg.estimator_type == "StatMean") {
     height_estimator_ = std::make_unique<height_mapping::StatMeanEstimator>();
 
     std::cout << "\033[1;33m[height_mapping::HeightMapper]: Height estimator "
@@ -69,7 +69,7 @@ typename boost::shared_ptr<pcl::PointCloud<PointT>>
 HeightMapper::heightMapping(const typename boost::shared_ptr<pcl::PointCloud<PointT>> &cloud) {
 
   // 1. Project pointcloud in each grid cell with max height
-  auto cloud_rasterized = cloudRasterization<PointT>(cloud, cfg_.grid_resolution);
+  auto cloud_rasterized = cloudRasterization<PointT>(cloud, cfg.grid_resolution);
 
   if (cloud_rasterized->empty()) {
     std::cout << "\033[1;31m[height_mapping::HeightMapper]: Height estimation failed. "

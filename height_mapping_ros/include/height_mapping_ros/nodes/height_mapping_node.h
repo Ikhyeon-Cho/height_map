@@ -20,7 +20,7 @@ public:
   struct Config {
     std::string lidarcloud_topic;
     std::string rgbdcloud_topic;
-    double robot_pose_update_rate;
+    double map_position_update_rate;
     double map_publish_rate;
     bool remove_backward_points;
     bool debug_mode;
@@ -60,12 +60,12 @@ private:
 
   // Publishers
   ros::Publisher pub_heightmap_;
-  ros::Publisher pub_scan_processed_;
+  ros::Publisher pub_scan_rasterized_;
   ros::Publisher pub_debug_lidar_;
   ros::Publisher pub_debug_rgbd_;
 
   // Timers
-  ros::Timer pose_update_timer_;
+  ros::Timer map_position_update_timer_;
   ros::Timer map_publish_timer_;
 
   // Core objects

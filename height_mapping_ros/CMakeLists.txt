@@ -9,9 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_ros
     pcl_conversions
     height_mapping_core
-    height_mapping_msgs
     height_mapping_io
-    height_mapping_utils
 )
 catkin_package(
   INCLUDE_DIRS 
@@ -21,9 +19,7 @@ catkin_package(
     tf2_ros
     pcl_conversions
     height_mapping_core
-    height_mapping_msgs
     height_mapping_io
-    height_mapping_utils
 )
 
 ###########
@@ -49,6 +45,7 @@ target_link_libraries(height_mapping_node
 # Global mapping node
 add_executable(global_mapping_node 
   src/nodes/global_mapping_node.cpp
+  src/core/HeightMapper.cpp
   src/core/GlobalMapper.cpp
 )
 target_link_libraries(global_mapping_node

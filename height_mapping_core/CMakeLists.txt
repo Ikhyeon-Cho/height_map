@@ -34,7 +34,6 @@ add_library(${PROJECT_NAME}
   src/KalmanEstimator.cpp
   src/MovingAverageEstimator.cpp
   src/StatMeanEstimator.cpp
-  src/HeightMapRaycaster.cpp
   src/FastHeightFilter.cpp
 )
 

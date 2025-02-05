@@ -1,7 +1,0 @@
-<launch>
-
-  <node pkg="height_mapping" type="global_mapping_node" name="global_mapping_node" output="screen">
-    <rosparam file="$(find height_mapping)/config/params_global.yaml" command="load" />
-  </node>
-
-</launch>

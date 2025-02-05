@@ -10,7 +10,7 @@
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <sensor_msgs/PointCloud2.h>
-
+#include <visualization_msgs/Marker.h>
 #include "height_mapping_ros/core/GlobalMapper.h"
 #include "height_mapping_ros/utils/TransformHandler.h"
 #include <height_mapping_io/height_mapping_io.h>
@@ -38,23 +38,27 @@ private:
   void initializePubSubs();
   void initializeServices();
 
-  void getNodeParameters();
-  void getFrameIDs();
-  void setupROSInterface();
-  GlobalMapper::Config getGlobalMappingParameters();
-
   // callback functions
   void lidarScanCallback(const sensor_msgs::PointCloud2Ptr &msg);
   void rgbdScanCallback(const sensor_msgs::PointCloud2Ptr &msg);
-  void publishPointCloudMap(const ros::TimerEvent &event);
+
+  // Core functions
+  pcl::PointCloud<Laser>::Ptr processLidarScan(const pcl::PointCloud<Laser>::Ptr &cloud,
+                                               const geometry_msgs::TransformStamped &lidar2base,
+                                               const geometry_msgs::TransformStamped &base2map);
+  pcl::PointCloud<Color>::Ptr processRGBDCloud(const pcl::PointCloud<Color>::Ptr &cloud,
+                                               const geometry_msgs::TransformStamped &camera2base,
+                                               const geometry_msgs::TransformStamped &base2map);
+
   bool saveMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
   bool clearMapCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-  // bool saveMapCallback(height_mapping_msgs::SaveLayerToImage::Request &req,
-  //                      height_mapping_msgs::SaveLayerToImage::Response &res);
 
+  // Helper functions
+  void publishPointCloudMap(const ros::TimerEvent &event);
   void toPointCloud2(const grid_map::HeightMap &map, const std::vector<std::string> &layers,
                      const std::unordered_set<grid_map::Index> &grid_indices,
                      sensor_msgs::PointCloud2 &cloud);
+  void toMapRegion(const grid_map::HeightMap &map, visualization_msgs::Marker &region);
 
   ros::NodeHandle nh_;
 
@@ -68,6 +72,7 @@ private:
   // Publishers
   ros::Publisher pub_map_cloud_;
   ros::Publisher pub_map_region_;
+  ros::Publisher pub_scan_rasterized_;
 
   // Services
   ros::ServiceServer srv_clear_map_;
@@ -76,20 +81,12 @@ private:
   // Timers
   ros::Timer map_publish_timer_;
 
-  // Frame IDs
-  std::string mapFrame_;
-  std::string baselinkFrame_;
-  std::string lidarFrame_;
-
-  // Parameters
-  bool debugMode_{false};
-  double mapPublishRate_;
-  std::string mapSavePath_;
-
   // Core mapping object
   std::unique_ptr<GlobalMapper> mapper_;
   TransformHandler tf_;
   TransformHandler::FrameID frameID;
+
+  // Map writer
   HeightMapWriter mapWriter_;
 
   // State variables
